@@ -7,7 +7,7 @@
 
 class QWidget;
 
-struct CCopyDialog
+struct CCopyDialogQt
 {
   UStringVector Strings;  // history
   UString Value;
@@ -16,6 +16,6 @@ struct CCopyDialog
   UString Info;
 };
 
-bool RunCopyDialog(QWidget *parent, CCopyDialog &d);
+bool RunCopyDialog(QWidget *parent, CCopyDialogQt &d);
 
 #endif

@@ -32,7 +32,7 @@ struct CStore
   QSettings S;
   CStore():
       Lock(&g_Mutex),
-      S(QSettings::IniFormat, QSettings::UserScope, QStringLiteral("7zfm-qt"), QStringLiteral("7zfm-qt"))
+      S(QSettings::NativeFormat, QSettings::UserScope, QStringLiteral("7zfm-qt"), QStringLiteral("7zfm-qt"))
       {}
 };
 

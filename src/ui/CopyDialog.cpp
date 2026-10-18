@@ -14,7 +14,7 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
-bool RunCopyDialog(QWidget *parent, CCopyDialog &cd)
+bool RunCopyDialog(QWidget *parent, CCopyDialogQt &cd)
 {
   QDialog d(parent ? parent->window() : nullptr);
   QString title = ToQ(cd.Title);

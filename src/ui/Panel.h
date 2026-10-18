@@ -132,6 +132,9 @@ public:
   void CreateFile();                      // Ctrl+N
   void ChangeComment();                   // Ctrl+Z
   void DropFiles(const QStringList &paths, bool moveMode);
+  void Link();                            // upstream CApp::Link
+  void Split();                           // upstream CApp::Split
+  void Combine();                         // upstream CApp::Combine
   bool CanModify() const { return _folderOperations != nullptr; }
   UString GetFsPathPublic() const { return GetFsPath(); }
   bool IsFSFolderPublic() const { return IsFSFolder(); }
@@ -173,6 +176,7 @@ protected:
   bool eventFilter(QObject *obj, QEvent *ev) override;
 
 private:
+  friend class CPanelSplitAdapter;
   // upstream helpers
   void SetNewFolder(IFolderFolder *newFolder);
   void ReleaseFolder();

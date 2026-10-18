@@ -17,6 +17,8 @@
 #include "FolderModel.h"
 #include "Messages.h"
 #include "QtConv.h"
+#include "SplitPanel.h"
+#include "LinkDialog.h"
 
 #include <QAbstractItemView>
 #include <QFile>
@@ -352,6 +354,53 @@ void Panel::DropFiles(const QStringList &paths, bool moveMode)
   CRecordVector<UInt32> none;
   CopyTo(options, none, NULL, usePassword, password, &filePaths);
   RefreshListCtrl(state);
+}
+
+// ---------- split / combine (upstream PanelSplitFile.cpp) ----------
+
+class CPanelSplitAdapter : public ISplitPanel
+{
+  Panel &_p;
+public:
+  explicit CPanelSplitAdapter(Panel &p): _p(p) {}
+  bool Is_IO_FS_Folder() const override { return _p.IsFSFolder(); }
+  bool IsFSFolder() const override { return _p.IsFSFolder(); }
+  void Get_ItemIndices_Operated(CRecordVector<UInt32> &indices) const override { _p.Get_ItemIndices_Operated(indices); }
+  bool IsItem_Folder(unsigned index) const override { return _p.IsItem_Folder(index); }
+  UString GetItemName(unsigned index) const override { return _p.GetItemName(index); }
+  UString GetItemRelPath(unsigned index) const override { return _p.GetItemRelPath(index); }
+  UString GetFsPath() const override { return _p.GetFsPath(); }
+  void MessageBox_Error(const UString &message) override { _p.MessageBox_Error(message); }
+};
+
+void Panel::Link()
+{
+  if (!IsFSFolder())
+  {
+    MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+    return;
+  }
+  const int focused = FocusedRealIndex();
+  if (focused < 0)
+    return;
+  CSelectedState state;
+  SaveSelectedState(state);
+  if (RunLinkDialog(this, ToQ(GetFsPath() + GetItemRelPath((unsigned)focused)), ToQ(GetFsPath())))
+    RefreshListCtrl(state);
+}
+
+void Panel::Split()
+{
+  CPanelSplitAdapter a(*this);
+  SplitFile(a);
+  RefreshListCtrl_SaveFocused();
+}
+
+void Panel::Combine()
+{
+  CPanelSplitAdapter a(*this);
+  CombineFiles(a);
+  RefreshListCtrl_SaveFocused();
 }
 
 // ---------- write-back of edited files ----------

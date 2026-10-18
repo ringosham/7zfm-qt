@@ -134,6 +134,10 @@ void MainWindow::CreateMenus()
   a->setShortcut(QKeySequence(Qt::Key_Delete));
   a->setShortcutContext(Qt::WidgetShortcut);
   file->addSeparator();
+  file->addAction(M(IDM_LINK, "&Link..."), this, [this]() { _panel->Link(); });
+  file->addAction(M(IDM_SPLIT, "&Split file..."), this, [this]() { _panel->Split(); });
+  file->addAction(M(IDM_COMBINE, "Com&bine files..."), this, [this]() { _panel->Combine(); });
+  file->addSeparator();
   a = file->addAction(M(IDM_COMMENT, "Comme&nt..."), this, [this]() { _panel->ChangeComment(); });
   a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
   a->setShortcutContext(Qt::WidgetShortcut);

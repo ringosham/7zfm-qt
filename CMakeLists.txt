@@ -110,8 +110,11 @@ set(UPDATE_GUI_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateCallbackGUI2.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/UpdateCallback100.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/ComboDialog.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/CopyDialog.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/SplitDialog.cpp
   src/gui/CompressCall2.cpp
-  src/gui/FolderOps.cpp)
+  src/gui/FolderOps.cpp
+  src/gui/PanelSplitFile.cpp)
 set(Q32_INCLUDE "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/w32ui/Q32.h")
 set_source_files_properties(${W32UI_UPSTREAM_SOURCES} PROPERTIES COMPILE_OPTIONS "${Q32_INCLUDE}")
 set_source_files_properties(${UPDATE_GUI_SOURCES} PROPERTIES COMPILE_OPTIONS

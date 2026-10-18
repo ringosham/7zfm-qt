@@ -89,6 +89,8 @@ int main(int argc, char *argv[])
           w.GetPanel()->SelectByName(keys[i].mid(8));
           return;
         }
+        if (keys[i] == QLatin1String("@wait"))
+          return;
         if (keys[i].startsWith(QLatin1String("@type:")))
         {
           QWidget *target = QApplication::focusWidget();
@@ -105,6 +107,8 @@ int main(int argc, char *argv[])
           const QString a = keys[i].mid(8);
           if (a == QLatin1String("extract")) w.GetPanel()->ExtractArchives();
           else if (a == QLatin1String("add")) w.GetPanel()->AddToArchive();
+          else if (a == QLatin1String("split")) w.GetPanel()->Split();
+          else if (a == QLatin1String("combine")) w.GetPanel()->Combine();
           else if (a.startsWith(QLatin1String("rename:"))) w.GetPanel()->RenameFocused(a.mid(7));
           else if (a.startsWith(QLatin1String("drop:"))) w.GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);
           else if (a == QLatin1String("test")) w.GetPanel()->TestArchives();
@@ -115,9 +119,12 @@ int main(int argc, char *argv[])
         if (!seq.isEmpty())
         {
           const QKeyCombination kc = seq[0];
-          QWidget *target = QApplication::focusWidget();
+          // keys go to the active modal dialog if there is one
+          QWidget *target = nullptr;
+          if (QWidget *modal = QApplication::activeModalWidget())
+            target = modal->focusWidget() ? modal->focusWidget() : modal;
           if (!target)
-            target = QApplication::activeModalWidget() ? QApplication::activeModalWidget() : &w;
+            target = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
           QKeyEvent press(QEvent::KeyPress, kc.key(), kc.keyboardModifiers());
           QApplication::sendEvent(target, &press);
           QKeyEvent release(QEvent::KeyRelease, kc.key(), kc.keyboardModifiers());

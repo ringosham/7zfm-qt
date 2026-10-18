@@ -841,10 +841,11 @@ std::shared_ptr<QTemporaryDir> Panel::CreateTempDir()
 
 bool Panel::StartApplication(const UString &path, bool editMode, bool useEditor)
 {
-  if (editMode && useEditor)
+  if (editMode)
   {
+    // upstream: F3 uses the configured Viewer, F4 the Editor (Options > Editor)
     UString editor;
-    ReadRegEditor(false, editor);
+    ReadRegEditor(useEditor, editor);
     if (!editor.IsEmpty())
     {
       QStringList args = QProcess::splitCommand(ToQ(editor));

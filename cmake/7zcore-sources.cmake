@@ -316,3 +316,17 @@ set(SEVENZIP_CORE_SOURCES
   ${SEVENZIP_DIR}/C/XzIn.c
   ${SEVENZIP_DIR}/C/ZstdDec.c
 )
+# upstream 7zz console UI (tests/7zz reference binary)
+set(SEVENZIP_CONSOLE_SOURCES
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/BenchCon.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/ConsoleClose.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/ExtractCallbackConsole.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/HashCon.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/List.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/MainAr.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/Main.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/OpenCallbackConsole.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/PercentPrinter.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/UpdateCallbackConsole.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Console/UserInputUtils.cpp
+)

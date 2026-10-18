@@ -382,7 +382,7 @@ void Panel::CopyToDialog(bool move)
   ReadCopyHistory(copyFolders);
 
   {
-    CCopyDialog copyDialog;
+    CCopyDialogQt copyDialog;
     copyDialog.Strings = copyFolders;
     copyDialog.Value = destPath;
     LangString(move ? IDS_MOVE : IDS_COPY, copyDialog.Title);
