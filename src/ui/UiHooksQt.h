@@ -20,6 +20,10 @@ public:
       const std::function<void()> &work, bool waitMode) override;
   bool AskPassword(UString &password) override;
   void ShowError(const UString &message) override;
+  EOverwriteAnswer AskOverwrite(const COverwriteFileInfo &oldFile, const COverwriteFileInfo &newFile) override;
+  bool AskMemoryUse(CMemUseQuestion &q) override;
+  bool RunExtractDialog(CExtractDialog &dialog) override;
+  void ShowPropertyList(const UString &title, const UStringVector &names, const UStringVector &values) override;
 
   QWidget *DialogParent() const;
 };

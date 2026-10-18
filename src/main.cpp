@@ -8,6 +8,8 @@
 
 #include "ui/MainWindow.h"
 #include "ui/Panel.h"
+#include "ui/UiHooksQt.h"
+#include "FmProgress.h"
 #include "QtConv.h"
 
 #include <QApplication>
@@ -17,6 +19,9 @@
 #include <QKeySequence>
 #include <QMessageBox>
 #include <QTimer>
+
+#include <functional>
+#include <memory>
 
 int main(int argc, char *argv[])
 {
@@ -36,6 +41,8 @@ int main(int argc, char *argv[])
   }
 
   MainWindow w;
+  UiHooksQt hooks(&w);
+  g_UiHooks = &hooks;
   w.show();
 
   QString start;
@@ -47,7 +54,11 @@ int main(int argc, char *argv[])
     if (args[i] == QLatin1String("--screenshot") && i + 1 < args.size())
       screenshot = args[++i];
     else if (args[i] == QLatin1String("--keys") && i + 1 < args.size())
-      keys = args[++i].split(QLatin1Char(','), Qt::SkipEmptyParts);
+      keys += args[++i].split(QLatin1Char(','), Qt::SkipEmptyParts);
+    else if (args[i] == QLatin1String("--select") && i + 1 < args.size())
+      keys.prepend(QStringLiteral("@select:") + args[++i]);
+    else if (args[i] == QLatin1String("--action") && i + 1 < args.size())
+      keys.append(QStringLiteral("@action:") + args[++i]);
     else if (start.isEmpty())
       start = QFileInfo(args[i]).absoluteFilePath();
   }
@@ -65,25 +76,48 @@ int main(int argc, char *argv[])
 
   if (!screenshot.isEmpty())
   {
-    QTimer::singleShot(300, &w, [&w, screenshot, keys]() {
-      for (const QString &k : keys)
+    // replay keys one by one (so modal dialogs can receive them), then grab
+    // the active window
+    auto step = std::make_shared<std::function<void(int)>>();
+    *step = [&w, screenshot, keys, step](int i) {
+      if (i < keys.size())
       {
-        const QKeySequence seq(k);
-        if (seq.isEmpty())
-          continue;
-        const QKeyCombination kc = seq[0];
-        QWidget *target = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
-        QKeyEvent press(QEvent::KeyPress, kc.key(), kc.keyboardModifiers());
-        QApplication::sendEvent(target, &press);
-        QKeyEvent release(QEvent::KeyRelease, kc.key(), kc.keyboardModifiers());
-        QApplication::sendEvent(target, &release);
-        QApplication::processEvents();
+        // schedule the next step first: this key may open a modal dialog
+        QTimer::singleShot(400, qApp, [step, i]() { (*step)(i + 1); });
+        if (keys[i].startsWith(QLatin1String("@select:")))
+        {
+          w.GetPanel()->SelectByName(keys[i].mid(8));
+          return;
+        }
+        if (keys[i].startsWith(QLatin1String("@action:")))
+        {
+          const QString a = keys[i].mid(8);
+          if (a == QLatin1String("extract")) w.GetPanel()->ExtractArchives();
+          else if (a == QLatin1String("test")) w.GetPanel()->TestArchives();
+          else if (a == QLatin1String("properties")) w.GetPanel()->Properties();
+          return;
+        }
+        const QKeySequence seq(keys[i]);
+        if (!seq.isEmpty())
+        {
+          const QKeyCombination kc = seq[0];
+          QWidget *target = QApplication::focusWidget();
+          if (!target)
+            target = QApplication::activeModalWidget() ? QApplication::activeModalWidget() : &w;
+          QKeyEvent press(QEvent::KeyPress, kc.key(), kc.keyboardModifiers());
+          QApplication::sendEvent(target, &press);
+          QKeyEvent release(QEvent::KeyRelease, kc.key(), kc.keyboardModifiers());
+          QApplication::sendEvent(target, &release);
+        }
+        return;
       }
-      QTimer::singleShot(200, &w, [&w, screenshot]() {
-        w.grab().save(screenshot);
-        QApplication::quit();
-      });
-    });
+      QWidget *top = QApplication::activeModalWidget();
+      if (!top)
+        top = &w;
+      top->grab().save(screenshot);
+      QApplication::exit(0);
+    };
+    QTimer::singleShot(300, qApp, [step]() { (*step)(0); });
   }
   return app.exec();
 }

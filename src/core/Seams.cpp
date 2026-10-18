@@ -66,3 +66,13 @@ bool MyGetModuleFileName(FString &path)
 }
 
 }}
+
+// Upstream FileManager/Explorer define this; the GUI never runs headless.
+bool g_DisableUserQuestions = false;
+
+#include "7zip/UI/Common/ArchiveExtractCallback.h"
+
+// Windows "Zone.Identifier" (Mark-of-the-Web) alternate streams have no
+// POSIX equivalent; upstream only implements these for _WIN32.
+bool Is_ZoneId_StreamName(const wchar_t *) { return false; }
+bool WriteZoneFile_To_BaseFile(CFSTR, const CByteBuffer &) { return true; }

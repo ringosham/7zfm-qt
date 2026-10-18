@@ -10,6 +10,9 @@
 #include "7zip/UI/FileManager/LangUtils.h"
 #include "7zip/UI/FileManager/resourceGui.h"
 #include "7zip/UI/GUI/ExtractRes.h"
+#include "7zip/UI/FileManager/MemDialogRes.h"
+
+#include "UiHooks.h"
 
 using namespace NWindows;
 
@@ -72,4 +75,55 @@ UString GetOpenArcErrorMessage(UInt32 errorFlags)
   }
 
   return s;
+}
+
+// from upstream FileManager/MemDialog.cpp
+static void AddSize_GB(UString &s, UInt32 size_GB, UInt32 id)
+{
+  s.Add_LF();
+  s += "    ";
+  s.Add_UInt32(size_GB);
+  s += " GB : ";
+  AddLangString(s, id);
+}
+
+void CMemUseQuestion::AddInfoMessage_To_String(UString &s, const UInt32 *ramSize_GB) const
+{
+  AddLangString(s, IDS_MEM_REQUIRES_BIG_MEM);
+  AddSize_GB(s, Required_GB, IDS_MEM_REQUIRED_MEM_SIZE);
+  AddSize_GB(s, Limit_GB, IDS_MEM_CURRENT_MEM_LIMIT);
+  if (ramSize_GB)
+    AddSize_GB(s, *ramSize_GB, IDS_MEM_RAM_SIZE);
+  if (!FilePath.IsEmpty())
+  {
+    s.Add_LF();
+    s += "File: ";
+    s += FilePath;
+  }
+}
+
+// from upstream FileManager/OverwriteDialog.cpp
+#include "7zip/UI/FileManager/FormatUtils.h"
+#include "7zip/UI/FileManager/OverwriteDialogRes.h"
+
+void AddSizeValue(UString &s, UInt64 value);
+void AddSizeValue(UString &s, UInt64 value)
+{
+  {
+    wchar_t sz[32];
+    ConvertUInt64ToString(value, sz);
+    s += MyFormatNew(IDS_FILE_SIZE, sz);
+  }
+  if (value >= (1 << 10))
+  {
+    char c;
+          if (value >= ((UInt64)10 << 30)) { value >>= 30; c = 'G'; }
+    else  if (value >=         (10 << 20)) { value >>= 20; c = 'M'; }
+    else                                   { value >>= 10; c = 'K'; }
+    s += " : ";
+    s.Add_UInt64(value);
+    s.Add_Space();
+    s.Add_Char(c);
+    s += "iB";
+  }
 }

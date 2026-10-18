@@ -18,6 +18,7 @@
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
@@ -271,15 +272,20 @@ void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &ti
   }
 
   QStringList messages;
+  QString okMessage, okTitle;
   {
     NWindows::NSynchronization::CCriticalSectionLock lock(sync._cs);
     FOR_VECTOR (i, sync.Messages)
       messages << ToQ(sync.Messages[i]);
     if (!sync.FinalMessage.ErrorMessage.Message.IsEmpty())
       messages << ToQ(sync.FinalMessage.ErrorMessage.Message);
+    okMessage = ToQ(sync.FinalMessage.OkMessage.Message);
+    okTitle = ToQ(sync.FinalMessage.OkMessage.Title);
   }
   if (!messages.isEmpty())
     ShowMessagesDialog(parent, title, messages);
+  else if (!okMessage.isEmpty())
+    QMessageBox::information(parent ? parent->window() : nullptr, okTitle.isEmpty() ? title : okTitle, okMessage);
 }
 
 void ShowMessagesDialog(QWidget *parent, const QString &title, const QStringList &messages)

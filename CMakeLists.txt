@@ -85,11 +85,11 @@ target_include_directories(fmlogic PUBLIC src/fm src/core
   PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(fmlogic PUBLIC 7zcore)
 
-# ---- tests ----
-enable_testing()
-add_subdirectory(tests)
-
 # ---- GUI ----
 if(BUILD_GUI)
   add_subdirectory(src)
 endif()
+
+# ---- tests ----
+enable_testing()
+add_subdirectory(tests)

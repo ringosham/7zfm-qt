@@ -111,6 +111,16 @@ void MainWindow::CreateMenus()
   a->setShortcutContext(Qt::WidgetShortcut); // handled by the panel's key filter
   file->addAction(M(IDM_OPEN_INSIDE_ONE, "Open Inside *"), this, [this]() { OpenInsideAction(L"*"); });
   file->addAction(M(IDM_OPEN_INSIDE_PARSER, "Open Inside #"), this, [this]() { OpenInsideAction(L"#"); });
+  a = file->addAction(M(IDM_OPEN_OUTSIDE, "Open O&utside"), this, [this]() { _panel->OpenFocusedItemOutside(); });
+  a->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Return));
+  a->setShortcutContext(Qt::WidgetShortcut);
+  a = file->addAction(M(IDM_FILE_VIEW, "&View"), this, [this]() { _panel->EditItem(false); });
+  a->setShortcut(QKeySequence(Qt::Key_F3));
+  a = file->addAction(M(IDM_FILE_EDIT, "&Edit"), this, [this]() { _panel->EditItem(true); });
+  a->setShortcut(QKeySequence(Qt::Key_F4));
+  file->addSeparator();
+  a = file->addAction(M(IDM_COPY_TO, "&Copy To..."), this, [this]() { _panel->CopyToDialog(false); });
+  a->setShortcut(QKeySequence(Qt::Key_F5));
   file->addSeparator();
   a = file->addAction(M(IDM_PROPERTIES, "P&roperties"), this, [this]() { _panel->Properties(); });
   a->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Return));
@@ -154,6 +164,11 @@ void MainWindow::CreateMenus()
   _favoritesMenu = menuBar()->addMenu(M(IDM_FAVORITES, "F&avorites"));
   RebuildFavoritesMenu();
 
+  // ---- Tools ----
+  QMenu *tools = menuBar()->addMenu(M(IDM_TOOLS, "&Tools"));
+  tools->addAction(tr("E&xtract..."), this, [this]() { _panel->ExtractArchives(); });
+  tools->addAction(tr("&Test"), this, [this]() { _panel->TestArchives(); });
+
   // ---- Help ----
   QMenu *help = menuBar()->addMenu(M(IDM_HELP, "&Help"));
   help->addAction(M(IDM_ABOUT, "&About 7-Zip..."), this, &MainWindow::About);
@@ -167,6 +182,10 @@ void MainWindow::CreateToolBar()
   tb->setMovable(false);
   tb->addAction(ThemeIcon("go-up"), M(IDM_OPEN_PARENT_FOLDER, "Up"), this, [this]() { _panel->OpenParentFolder(); });
   tb->addAction(ThemeIcon("computer"), M(IDM_OPEN_ROOT_FOLDER, "Root"), this, [this]() { _panel->OpenRootFolder(); });
+  tb->addSeparator();
+  tb->addAction(ThemeIcon("archive-extract"), tr("Extract"), this, [this]() { _panel->ExtractArchives(); });
+  tb->addAction(ThemeIcon("dialog-ok-apply"), tr("Test"), this, [this]() { _panel->TestArchives(); });
+  tb->addAction(ThemeIcon("edit-copy"), tr("Copy"), this, [this]() { _panel->CopyToDialog(false); });
   tb->addSeparator();
   tb->addAction(ThemeIcon("document-properties"), tr("Info"), this, [this]() { _panel->Properties(); });
 }

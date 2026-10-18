@@ -11,6 +11,7 @@
 #include "Windows/FileName.h"
 #include "Windows/PropVariant.h"
 #include "Windows/PropVariantConv.h"
+#include "Windows/System.h"
 
 #include "7zip/PropID.h"
 #include "7zip/Archive/IArchive.h"
@@ -18,9 +19,15 @@
 #include "7zip/UI/FileManager/LangUtils.h"
 #include "7zip/UI/FileManager/resource.h"
 #include "7zip/UI/GUI/ExtractRes.h"
+#include "7zip/UI/Common/ExtractingFilePath.h"
+#include "7zip/UI/FileManager/RegistryUtils.h"
+#include "7zip/Common/StreamObjects.h"
+
+#include "ExtractCallback.h"
 
 #include "FileFolderPluginOpen.h"
 #include "FolderModel.h"
+#include "IconProvider.h"
 #include "ListFormat.h"
 #include "Messages.h"
 #include "PanelProperties.h"
@@ -31,6 +38,11 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QDrag>
+#include <QMimeData>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QDir>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -62,6 +74,24 @@ static UString GetFolderPath(IFolderFolder *folder)
   return UString();
 }
 
+namespace {
+
+// the views forward drag starts to the panel (upstream PanelDrag.cpp)
+template <class TBase>
+class CDragView : public TBase
+{
+public:
+  Panel *Owner = nullptr;
+protected:
+  void startDrag(Qt::DropActions) override
+  {
+    if (Owner)
+      Owner->StartDrag();
+  }
+};
+
+}
+
 Panel::Panel(QWidget *parent): QWidget(parent)
 {
   _ui = new UiHooksQt(this);
@@ -81,7 +111,9 @@ Panel::Panel(QWidget *parent): QWidget(parent)
   connect(_address->lineEdit(), &QLineEdit::returnPressed, this, &Panel::OnAddressEntered);
   connect(_address, &QComboBox::activated, this, [this](int) { OnAddressEntered(); });
 
-  _details = new QTreeView;
+  auto *details = new CDragView<QTreeView>;
+  details->Owner = this;
+  _details = details;
   _details->setRootIsDecorated(false);
   _details->setUniformRowHeights(true);
   _details->setAllColumnsShowFocus(true);
@@ -104,7 +136,9 @@ Panel::Panel(QWidget *parent): QWidget(parent)
       CurrentView()->scrollTo(CurrentView()->currentIndex());
   });
 
-  _list = new QListView;
+  auto *list = new CDragView<QListView>;
+  list->Owner = this;
+  _list = list;
   _list->setModel(_model);
   _list->setUniformItemSizes(true);
   _list->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -701,7 +735,7 @@ void Panel::OpenItem(unsigned index, bool tryInternal, bool tryExternal, const w
 
   if (!_parentFolders.isEmpty())
   {
-    OpenItemInArchive(index, tryInternal, tryExternal, type);
+    OpenItemInArchive(index, tryInternal, tryExternal, false, false, type);
     return;
   }
 
@@ -721,10 +755,65 @@ void Panel::OpenItem(unsigned index, bool tryInternal, bool tryExternal, const w
   }
 
   if (tryExternal)
-    QDesktopServices::openUrl(QUrl::fromLocalFile(ToQ(fullPath)));
+    StartApplication(fullPath, false, false);
 }
 
-void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal, const wchar_t *type)
+void Panel::OpenFocusedItemOutside()
+{
+  const int focused = FocusedRealIndex();
+  if (focused < 0 || IsItem_Folder((unsigned)focused))
+    return;
+  if (_parentFolders.isEmpty())
+    StartApplication(GetFsPath() + GetItemRelPath((unsigned)focused), false, false);
+  else
+    OpenItemInArchive((unsigned)focused, false, true, false, false, NULL);
+}
+
+void Panel::EditItem(bool useEditor)
+{
+  const int focused = FocusedRealIndex();
+  if (focused < 0 || IsItem_Folder((unsigned)focused))
+    return;
+  if (_parentFolders.isEmpty())
+    StartApplication(GetFsPath() + GetItemRelPath((unsigned)focused), true, useEditor);
+  else
+    OpenItemInArchive((unsigned)focused, false, true, true, useEditor, NULL);
+}
+
+std::shared_ptr<QTemporaryDir> Panel::CreateTempDir()
+{
+  // upstream uses %TEMP%\7zO*; we avoid tmpfs /tmp (RAM) for big items
+  QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+  QDir().mkpath(base);
+  auto dir = std::make_shared<QTemporaryDir>(base + QLatin1String("/7zO"));
+  if (!dir->isValid())
+    return nullptr;
+  return dir;
+}
+
+bool Panel::StartApplication(const UString &path, bool editMode, bool useEditor)
+{
+  if (editMode && useEditor)
+  {
+    UString editor;
+    ReadRegEditor(false, editor);
+    if (!editor.IsEmpty())
+    {
+      QStringList args = QProcess::splitCommand(ToQ(editor));
+      if (!args.isEmpty())
+      {
+        const QString prog = args.takeFirst();
+        args << ToQ(path);
+        if (QProcess::startDetached(prog, args))
+          return true;
+      }
+    }
+  }
+  return QDesktopServices::openUrl(QUrl::fromLocalFile(ToQ(path)));
+}
+
+void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal,
+    bool editMode, bool useEditor, const wchar_t *type)
 {
   const UString name = GetItemName(index);
   const UString relPath = GetItemRelPath(index);
@@ -739,9 +828,24 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
 
   const UString fullVirtPath = _currentFolderPrefix + relPath;
 
+  std::shared_ptr<QTemporaryDir> tempDirectory = CreateTempDir();
+  if (!tempDirectory)
+  {
+    MessageBox_Error(UString(L"Cannot create a temporary folder"));
+    return;
+  }
+
+  FString tempDir = QToFs(tempDirectory->path());
+  FString tempDirNorm = tempDir;
+  NName::NormalizeDirPathPrefix(tempDirNorm);
+  const FString tempFilePath = tempDirNorm + us2fs(Get_Correct_FsFile_Name(name));
+
   CTempFileInfo tempFileInfo;
   tempFileInfo.FileIndex = index;
   tempFileInfo.RelPath = relPath;
+  tempFileInfo.FolderPath = tempDir;
+  tempFileInfo.FilePath = tempFilePath;
+  tempFileInfo.NeedDelete = true;
 
   if (tryAsArchive)
   {
@@ -757,7 +861,12 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
         subSeqStream.QueryInterface(IID_IInStream, &subStream);
         if (subStream)
         {
-          HRESULT res = OpenAsArc_Msg(subStream, tempFileInfo, fullVirtPath, type ? type : L"");
+          // the nested item is opened in place: nothing is extracted
+          CTempFileInfo tfi = tempFileInfo;
+          tfi.FolderPath.Empty();
+          tfi.FilePath.Empty();
+          tfi.NeedDelete = false;
+          HRESULT res = OpenAsArc_Msg(subStream, tfi, fullVirtPath, type ? type : L"");
           if (res == S_OK)
           {
             RefreshListCtrl();
@@ -773,11 +882,133 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
     }
   }
 
-  // Upstream continues by extracting the item (to RAM when small, else to a
-  // temp folder) and opening that copy, or starting an external program.
-  // That needs the extract callback, which lands in phase 2.
-  MessageBox_Error(UString(L"This item has no in-place stream (it is stored compressed)."
-      L"\nOpening it requires extraction, which is not implemented yet:\n") + fullVirtPath);
+  CRecordVector<UInt32> indices;
+  indices.Add(index);
+
+  UStringVector messages;
+
+  bool usePassword = false;
+  UString password;
+  if (!_parentFolders.isEmpty())
+  {
+    const CFolderLink &fl = _parentFolders.back();
+    usePassword = fl.UsePassword;
+    password = fl.Password;
+  }
+
+  CVirtFileSystem *virtFileSystemSpec = NULL;
+  CMyComPtr<ISequentialOutStream> virtFileSystem;
+
+  CCopyToOptions options;
+  options.includeAltStreams = true;
+  options.replaceAltStreamChars = false;
+
+  if (tryAsArchive)
+  {
+    NCOM::CPropVariant prop;
+    _folder->GetProperty(index, kpidSize, &prop);
+    size_t ramSize = (size_t)1 << 30;
+    const bool ramDefined = NSystem::GetRamSize(ramSize);
+    const size_t fileLimit = ramDefined ?
+        ramSize >> MyMax((unsigned)_parentFolders.size() + 1, 8u) :
+        (size_t)1 << 22;
+    UInt64 fileSize = 0;
+    if (!ConvertPropVariantToUInt64(prop, fileSize))
+      fileSize = fileLimit;
+
+    if (fileSize <= fileLimit)
+    {
+      // small item: extract into RAM and open it from there
+      options.streamMode = true;
+      virtFileSystemSpec = new CVirtFileSystem;
+      virtFileSystem = virtFileSystemSpec;
+      virtFileSystemSpec->FileName = name;
+      virtFileSystemSpec->IsAltStreamFile = false;
+      virtFileSystemSpec->MaxTotalAllocSize = (size_t)fileSize + (1 << 16);
+      virtFileSystemSpec->DirPrefix = tempDirNorm;
+      options.VirtFileSystemSpec = virtFileSystemSpec;
+    }
+  }
+
+  options.folder = fs2us(tempDirNorm);
+  options.showErrorMessages = true;
+
+  const HRESULT result = CopyTo(options, indices, &messages, usePassword, password);
+
+  if (!_parentFolders.isEmpty())
+  {
+    CFolderLink &fl = _parentFolders.back();
+    fl.UsePassword = usePassword;
+    fl.Password = password;
+  }
+
+  if (!messages.IsEmpty())
+    return;
+  if (result != S_OK)
+  {
+    if (result != E_ABORT)
+      MessageBox_Error_HRESULT(result);
+    return;
+  }
+
+  if (virtFileSystemSpec && !virtFileSystemSpec->WasStreamFlushedToFS())
+  {
+    int index_in_Files = virtFileSystemSpec->Index_of_MainExtractedFile_in_Files;
+    if (index_in_Files < 0)
+    {
+      if (virtFileSystemSpec->Files.Size() != 1)
+      {
+        MessageBox_Error_HRESULT(E_FAIL);
+        return;
+      }
+      index_in_Files = 0;
+    }
+    {
+      const CVirtFile &file = virtFileSystemSpec->Files[(unsigned)index_in_Files];
+      CMyComPtr2_Create<IInStream, CBufInStream> bufInStream;
+      bufInStream->Init(file.Data, file.WrittenSize, virtFileSystem);
+      CTempFileInfo tfi = tempFileInfo;
+      tfi.FilePath.Empty();
+      tfi.NeedDelete = false;
+      const HRESULT res = OpenAsArc_Msg(bufInStream, tfi, fullVirtPath, type ? type : L"");
+      if (res == S_OK)
+      {
+        RefreshListCtrl();
+        return;
+      }
+      if (res == E_ABORT || res != S_FALSE)
+        return;
+      if (!tryExternal)
+        return;
+      tryAsArchive = false;
+      if (virtFileSystemSpec->FlushToDisk(true) != S_OK)
+        return;
+    }
+  }
+
+  if (tryAsArchive)
+  {
+    const HRESULT res = OpenAsArc_Msg(NULL, tempFileInfo, fullVirtPath, type ? type : L"");
+    if (res == S_OK)
+    {
+      _parentFolders.back().TempDir = tempDirectory;  // keep it while open
+      RefreshListCtrl();
+      return;
+    }
+    if (res == E_ABORT || res != S_FALSE)
+      return;
+  }
+
+  if (!tryExternal)
+    return;
+
+  NFind::CFileInfo fi;
+  if (!fi.Find(tempFilePath))
+    return;
+  // upstream watches the started process and offers to write back changes
+  // (phase 3); the temp copy is kept until 7zfm-qt exits
+  if (StartApplication(fs2us(tempFilePath), editMode, useEditor))
+    _externalTemps.append(tempDirectory);
 }
 
 void Panel::OpenFolder(unsigned index)
@@ -1179,6 +1410,82 @@ void Panel::SelectByMask(bool select)
   _selection->select(sel, (select ? QItemSelectionModel::Select : QItemSelectionModel::Deselect));
 }
 
+void Panel::SelectByName(const QString &name)
+{
+  const int row = _model->RowOfName(ToU(name));
+  if (row < 0)
+    return;
+  const QModelIndex i = _model->index(row, 0);
+  _selection->setCurrentIndex(i, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+  CurrentView()->scrollTo(i);
+}
+
+// ---------- drag out (upstream PanelDrag.cpp) ----------
+
+void Panel::StartDrag()
+{
+  CRecordVector<UInt32> indices;
+  Get_ItemIndices_Operated(indices);
+  if (indices.IsEmpty())
+    return;
+
+  QList<QUrl> urls;
+  if (_parentFolders.isEmpty() && IsFSFolder())
+  {
+    FOR_VECTOR (i, indices)
+      urls << QUrl::fromLocalFile(ToQ(GetFsPath() + GetItemRelPath(indices[i])));
+  }
+  else
+  {
+    // Like 7zFM: the items are extracted to a temp folder first, then the
+    // files are dragged from there. (Windows delays this until the drop;
+    // X11/Wayland drag sources need the paths up front.)
+    std::shared_ptr<QTemporaryDir> temp = CreateTempDir();
+    if (!temp)
+      return;
+    UString dir = ToU(temp->path());
+    NName::NormalizeDirPathPrefix(dir);
+    CCopyToOptions options;
+    options.folder = dir;
+    options.showErrorMessages = true;
+    bool usePassword = false;
+    UString password;
+    if (!_parentFolders.isEmpty())
+    {
+      usePassword = _parentFolders.back().UsePassword;
+      password = _parentFolders.back().Password;
+    }
+    UStringVector messages;
+    const HRESULT res = CopyTo(options, indices, &messages, usePassword, password);
+    if (res != S_OK || !messages.IsEmpty())
+      return;
+    if (!_parentFolders.isEmpty())
+    {
+      _parentFolders.back().UsePassword = usePassword;
+      _parentFolders.back().Password = password;
+    }
+    FOR_VECTOR (i, indices)
+      urls << QUrl::fromLocalFile(ToQ(dir + GetItemName(indices[i])));
+    _externalTemps.append(temp);  // the drop target may copy lazily
+  }
+
+  auto *mime = new QMimeData;
+  mime->setUrls(urls);
+  // GNOME/KDE file managers understand this for copy vs. move
+  mime->setData(QStringLiteral("x-special/gnome-copied-files"),
+      QByteArray("copy\n") + QUrl::toStringList(urls, QUrl::FullyEncoded).join(QLatin1Char('\n')).toUtf8());
+  auto *drag = new QDrag(this);
+  drag->setMimeData(mime);
+  const int focused = FocusedRealIndex();
+  if (focused >= 0)
+  {
+    const QIcon icon = IsItem_Folder((unsigned)focused) ? GetIconProvider().Folder()
+        : GetIconProvider().ForFile(ToQ(GetItemName((unsigned)focused)));
+    drag->setPixmap(icon.pixmap(32, 32));
+  }
+  drag->exec(Qt::CopyAction, Qt::CopyAction);
+}
+
 // ---------- properties ----------
 
 void Panel::Properties()
@@ -1232,20 +1539,21 @@ bool Panel::eventFilter(QObject *obj, QEvent *ev)
       if (alt)
         Properties();
       else if (shift)
-      {
-        // Open Outside (phase 2: archive items need extraction)
-        if (_parentFolders.isEmpty())
-        {
-          const int focused = FocusedRealIndex();
-          if (focused >= 0)
-            QDesktopServices::openUrl(QUrl::fromLocalFile(ToQ(GetFsPath() + GetItemRelPath((unsigned)focused))));
-        }
-      }
+        OpenFocusedItemOutside();
       else
         OpenSelectedItems(true);
       return true;
     case Qt::Key_Backspace:
       OpenParentFolder();
+      return true;
+    case Qt::Key_F3:
+      EditItem(false);
+      return true;
+    case Qt::Key_F4:
+      EditItem(true);
+      return true;
+    case Qt::Key_F5:
+      CopyToDialog(false);
       return true;
     case Qt::Key_PageDown:
       if (ctrl)

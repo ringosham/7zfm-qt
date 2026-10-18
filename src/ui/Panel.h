@@ -53,6 +53,24 @@ struct CFolderLink: public CTempFileInfo
   std::shared_ptr<QTemporaryDir> TempDir; // keeps an extracted temp file alive
 };
 
+class CVirtFileSystem;
+
+// upstream CCopyToOptions
+struct CCopyToOptions
+{
+  bool streamMode = false;
+  bool moveMode = false;
+  bool testMode = false;
+  bool includeAltStreams = true;
+  bool replaceAltStreamChars = false;
+  bool showErrorMessages = false;
+
+  UString folder;
+  UStringVector hashMethods;
+
+  CVirtFileSystem *VirtFileSystemSpec = NULL;
+};
+
 struct COpenResult
 {
   bool ArchiveIsOpened = false;
@@ -92,6 +110,18 @@ public:
   void OpenFocusedItemAsInternal(const wchar_t *type = NULL);
   void OpenItem(unsigned index, bool tryInternal, bool tryExternal, const wchar_t *type = NULL);
   void OpenFolder(unsigned index);
+  void OpenFocusedItemOutside();          // Shift+Enter
+  void EditItem(bool useEditor);          // F3 (view) / F4 (edit)
+
+  // ---- copy / extract / test (PanelCopy.cpp, PanelOperations.cpp) ----
+  HRESULT CopyTo(CCopyToOptions &options, const CRecordVector<UInt32> &indices,
+      UStringVector *messages, bool &usePassword, UString &password,
+      const UStringVector *filePaths = NULL);
+  void CopyToDialog(bool moveMode);       // F5 / F6
+  void TestArchives();
+  void ExtractArchives();                 // toolbar "Extract"
+  UString GetFsPathPublic() const { return GetFsPath(); }
+  bool IsFSFolderPublic() const { return IsFSFolder(); }
 
   // ---- selection (PanelSelect.cpp) ----
   void SelectAll(bool select);
@@ -99,6 +129,8 @@ public:
   void SelectByMask(bool select);  // Num+ / Num- dialog
 
   void Properties();
+  void StartDrag();                        // drag selected items out
+  void SelectByName(const QString &name);  // focus + select one item
   void SetViewMode(int mode);  // 0 large icons, 1 small icons, 2 list, 3 details
   int ViewMode() const { return _viewMode; }
   void FocusAddressBar();
@@ -147,9 +179,14 @@ private:
       const UString &virtualFilePath, const UString &arcFormat);
   HRESULT OpenAsArc_Name(const UString &relPath, const UString &arcFormat);
   HRESULT OpenAsArc_Index(unsigned index, const wchar_t *type);
-  void OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal, const wchar_t *type);
+  void OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal,
+      bool editMode, bool useEditor, const wchar_t *type);
+  std::shared_ptr<QTemporaryDir> CreateTempDir();
+  bool StartApplication(const UString &path, bool editMode, bool useEditor);
   HRESULT BindToNestedPath(UString &path);
 
+  UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
+  void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths) const;
   UString GetItemName(unsigned realIndex) const;
   UString GetItemRelPath(unsigned realIndex) const;
   bool IsItem_Folder(unsigned realIndex) const;
@@ -183,6 +220,7 @@ private:
   UString _typeIDString;
   CListViewInfo _listViewInfo;
   bool _needSaveInfo = false;
+  QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
 };
 
 #endif
