@@ -122,7 +122,12 @@ public:
   HRESULT CopyTo(CCopyToOptions &options, const CRecordVector<UInt32> &indices,
       UStringVector *messages, bool &usePassword, UString &password,
       const UStringVector *filePaths = NULL);
-  void CopyToDialog(bool moveMode);       // F5 / F6
+  // F5 / F6 (upstream CApp::OnCopy): to destPanel's folder, which is this
+  // panel with one panel; copyToSame (Shift+F5/F6) copies the focused item
+  // under a new name
+  void CopyToPanel(Panel &destPanel, bool moveMode, bool copyToSame);
+  void CopyToDialog(bool moveMode) { CopyToPanel(*this, moveMode, false); }
+  void OpenSubFolderIn(Panel &destPanel);  // Alt+Left/Right (CApp::OnSetSubFolder)
   void TestArchives();
   void ExtractArchives();                 // toolbar "Extract"
   void AddToArchive();                    // toolbar "Add"
@@ -175,10 +180,15 @@ public:
   void SaveListViewInfo();
   QStringList History() const;
   void SetHistory(const QStringList &paths);
+  void AddHistoryItem(const QString &path); // most recent first
 
 signals:
   void FolderChanged(const QString &path);
   void StatusChanged();
+  // upstream CPanelCallback, for the other panel (MainWindow)
+  void TabPressed();
+  void SetSameFolderRequested();          // Alt+Up
+  void SetSubFolderRequested();           // Alt+Left / Alt+Right
 
 protected:
   bool eventFilter(QObject *obj, QEvent *ev) override;

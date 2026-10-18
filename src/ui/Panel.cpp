@@ -247,6 +247,9 @@ void Panel::SetViewMode(int mode)
 {
   if (mode < 0 || mode > 3)
     return;
+  // keep the focus in this panel if it is here (not with two panels otherwise)
+  QWidget *fw = window()->focusWidget();
+  const bool hadFocus = fw && isAncestorOf(fw);
   _viewMode = mode;
   if (mode == 3)
     _stack->setCurrentWidget(_details);
@@ -261,7 +264,8 @@ void Panel::SetViewMode(int mode)
     _list->setSpacing(mode == 1 ? 4 : 0);
     _stack->setCurrentWidget(_list);
   }
-  CurrentView()->setFocus();
+  if (hadFocus)
+    CurrentView()->setFocus();
 }
 
 void Panel::ApplySettings()
@@ -370,15 +374,9 @@ void Panel::LoadFullPathAndShow()
 {
   LoadFullPath();
   const QString path = ToQ(_currentFolderPrefix);
-  _address->lineEdit()->setText(path);
-  // folder history (upstream AppState FolderHistory), most recent first
-  const int old = _address->findText(path);
-  if (old >= 0)
-    _address->removeItem(old);
-  _address->insertItem(0, path);
-  while (_address->count() > 50)
-    _address->removeItem(_address->count() - 1);
+  AddHistoryItem(path);
   _address->setCurrentIndex(0);
+  _address->lineEdit()->setText(path);
   emit FolderChanged(path);
 }
 
@@ -1515,6 +1513,19 @@ QStringList Panel::History() const
   return l;
 }
 
+void Panel::AddHistoryItem(const QString &path)
+{
+  // folder history (upstream AppState FolderHistory, shared by both panels)
+  const QString cur = _address->lineEdit()->text();
+  const int old = _address->findText(path);
+  if (old >= 0)
+    _address->removeItem(old);
+  _address->insertItem(0, path);
+  while (_address->count() > 50)
+    _address->removeItem(_address->count() - 1);
+  _address->lineEdit()->setText(cur);
+}
+
 void Panel::SetHistory(const QStringList &paths)
 {
   const QString cur = _address->lineEdit()->text();
@@ -1763,6 +1774,29 @@ bool Panel::eventFilter(QObject *obj, QEvent *ev)
     case Qt::Key_Backspace:
       OpenParentFolder();
       return true;
+    case Qt::Key_Tab:
+    case Qt::Key_Backtab:
+      if (!ctrl && !alt)
+      {
+        emit TabPressed();
+        return true;
+      }
+      break;
+    case Qt::Key_Up:
+      if (alt)
+      {
+        emit SetSameFolderRequested();
+        return true;
+      }
+      break;
+    case Qt::Key_Left:
+    case Qt::Key_Right:
+      if (alt)
+      {
+        emit SetSubFolderRequested();
+        return true;
+      }
+      break;
     // F2..F7, Del, Ctrl+N, Ctrl+Z are window-wide menu shortcuts (MainWindow)
     case Qt::Key_PageDown:
       if (ctrl)

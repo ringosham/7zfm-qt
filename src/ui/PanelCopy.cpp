@@ -34,6 +34,8 @@
 #include "QtConv.h"
 
 #include <QDir>
+#include <QItemSelectionModel>
+#include <QTemporaryDir>
 #include <QMessageBox>
 
 using namespace NWindows;
@@ -362,8 +364,11 @@ static void Reduce_Path_To_RealFileSystemPath(UString &path)
   }
 }
 
-void Panel::CopyToDialog(bool move)
+void Panel::CopyToPanel(Panel &destPanel, bool move, bool copyToSame)
 {
+  // upstream CApp::OnCopy(move, copyToSame, srcPanelIndex); srcPanel is *this
+  const bool twoPanels = (&destPanel != this);
+
   if (!_folderOperations)
   {
     MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
@@ -371,15 +376,33 @@ void Panel::CopyToDialog(bool move)
   }
 
   CRecordVector<UInt32> indices;
-  Get_ItemIndices_Operated(indices);
-  if (indices.Size() == 0)
-    return;
+  UString destPath;
+  bool useDestPanel = false;
 
-  UString destPath = GetFsPath();
-  Reduce_Path_To_RealFileSystemPath(destPath);
+  {
+    if (copyToSame)
+    {
+      const int focusedItem = FocusedRealIndex();
+      if (focusedItem < 0)
+        return;
+      indices.Add((UInt32)focusedItem);
+      destPath = GetItemName((unsigned)focusedItem);
+    }
+    else
+    {
+      Get_ItemIndices_Operated(indices);
+      if (indices.Size() == 0)
+        return;
+      destPath = destPanel.GetFsPath();
+      if (!twoPanels)
+        Reduce_Path_To_RealFileSystemPath(destPath);
+    }
+  }
 
   UStringVector copyFolders;
   ReadCopyHistory(copyFolders);
+
+  const bool useFullItemPaths = IsFSFolder(); // maybe we need flat also here ??
 
   {
     CCopyDialogQt copyDialog;
@@ -393,90 +416,206 @@ void Panel::CopyToDialog(bool move)
     destPath = copyDialog.Value;
   }
 
-  if (destPath.IsEmpty())
   {
-    MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
-    return;
-  }
-
-  if (destPath.IsPrefixedBy(L"~/"))
-  {
-    destPath.Delete(0);
-    destPath.Insert(0, ToU(QDir::homePath()));
-  }
-  if (!NName::IsAbsolutePath(destPath))
-    destPath.Insert(0, GetFsPath());
-
-  if (!_parentFolders.isEmpty() || !IsFSFolder())
-  {
-    // copying out of an archive: destination is a file system folder
-    if (indices.Size() == 1 && !destPath.IsEmpty() && !IS_PATH_SEPAR(destPath.Back()))
+    if (destPath.IsEmpty())
     {
-      const int pos = destPath.ReverseFind_PathSepar();
-      const UString prefix = destPath.Left((unsigned)(pos + 1));
-      if (!CreateComplexDir(us2fs(prefix)))
+      MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+      return;
+    }
+
+    // upstream CorrectFsPath(); on POSIX: "~/" and paths relative to this panel
+    if (destPath.IsPrefixedBy(L"~/"))
+    {
+      destPath.Delete(0);
+      destPath.Insert(0, ToU(QDir::homePath()));
+    }
+    if (!NName::IsAbsolutePath(destPath))
+      destPath.Insert(0, GetFsPath());
+
+    bool possibleToUseDestPanel = false;
+
+    if (CompareFileNames(destPath, destPanel.GetFsPath()) == 0)
+    {
+      if (!twoPanels || CompareFileNames(destPath, GetFsPath()) == 0)
       {
-        MessageBox_Error(prefix + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
+        MessageBox_Error(UString(L"Cannot copy files onto itself"));
+        return;
+      }
+      if (destPanel._folderOperations)
+        possibleToUseDestPanel = true;
+    }
+
+    bool destIsFsPath = false;
+
+    if (possibleToUseDestPanel)
+    {
+      if (destPanel.IsFSFolder())
+        destIsFsPath = true;
+      else if (destPanel.IsFSDrivesFolder() || destPanel.IsRootFolder())
+      {
+        MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
         return;
       }
     }
     else
     {
-      NName::NormalizeDirPathPrefix(destPath);
-      if (!CreateComplexDir(us2fs(destPath)))
+      if (indices.Size() == 1 &&
+        !destPath.IsEmpty() && !IS_PATH_SEPAR(destPath.Back()))
       {
-        MessageBox_Error(destPath + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
-        return;
+        const int pos = destPath.ReverseFind_PathSepar();
+        if (pos < 0)
+        {
+          MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+          return;
+        }
+        const UString prefix = destPath.Left((unsigned)(pos + 1));
+        if (!CreateComplexDir(us2fs(prefix)))
+        {
+          MessageBox_Error(prefix + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
+          return;
+        }
       }
+      else
+      {
+        NName::NormalizeDirPathPrefix(destPath);
+        if (!CreateComplexDir(us2fs(destPath)))
+        {
+          MessageBox_Error(destPath + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
+          return;
+        }
+      }
+      destIsFsPath = true;
     }
+
+    if (!destIsFsPath)
+      useDestPanel = true;
+
+    AddUniqueStringToHeadOfList(copyFolders, destPath);
+    while (copyFolders.Size() > 20)
+      copyFolders.DeleteBack();
+    SaveCopyHistory(copyFolders);
   }
-  else
+
+  const bool useSrcPanel = !useDestPanel || !IsFSFolder();
+
+  const bool useTemp = useSrcPanel && useDestPanel;
+  if (useTemp && !twoPanels)
   {
-    // file system to file system (upstream: destIsFsPath)
-    if (CompareFileNames(destPath, GetFsPath()) == 0)
+    MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+    return;
+  }
+
+  // archive -> archive goes through a temp folder (upstream 7zE*)
+  std::shared_ptr<QTemporaryDir> tempDirectory;
+  UString tempDirPrefix;
+  if (useTemp)
+  {
+    tempDirectory = CreateTempDir();
+    if (!tempDirectory)
     {
-      MessageBox_Error(UString(L"Cannot copy files onto itself"));
+      MessageBox_Error_HRESULT(E_FAIL);
       return;
     }
-    if (indices.Size() != 1 || destPath.IsEmpty() || IS_PATH_SEPAR(destPath.Back()))
+    tempDirPrefix = ToU(tempDirectory->path());
+    NName::NormalizeDirPathPrefix(tempDirPrefix);
+  }
+
+  CSelectedState srcSelState;
+  CSelectedState destSelState;
+  SaveSelectedState(srcSelState);
+  destPanel.SaveSelectedState(destSelState);
+
+  HRESULT result = S_OK;
+
+  if (useSrcPanel)
+  {
+    CCopyToOptions options;
+    options.folder = useTemp ? tempDirPrefix : destPath;
+    options.moveMode = move;
+    options.includeAltStreams = true;
+    options.replaceAltStreamChars = false;
+    options.showErrorMessages = true;
+
+    bool usePassword = false;
+    UString password;
+    if (!_parentFolders.isEmpty())
     {
-      NName::NormalizeDirPathPrefix(destPath);
-      if (!CreateComplexDir(us2fs(destPath)))
-      {
-        MessageBox_Error(destPath + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
-        return;
-      }
+      usePassword = _parentFolders.back().UsePassword;
+      password = _parentFolders.back().Password;
+    }
+    result = CopyTo(options, indices, NULL, usePassword, password);
+    if (!_parentFolders.isEmpty() && result == S_OK)
+    {
+      _parentFolders.back().UsePassword = usePassword;
+      _parentFolders.back().Password = password;
     }
   }
 
-  AddUniqueStringToHeadOfList(copyFolders, destPath);
-  while (copyFolders.Size() > 20)
-    copyFolders.DeleteBack();
-  SaveCopyHistory(copyFolders);
-
-  CCopyToOptions options;
-  options.folder = destPath;
-  options.moveMode = move;
-  options.includeAltStreams = true;
-  options.replaceAltStreamChars = false;
-  options.showErrorMessages = true;
-
-  bool usePassword = false;
-  UString password;
-  if (!_parentFolders.isEmpty())
+  if (result == S_OK && useDestPanel)
   {
-    usePassword = _parentFolders.back().UsePassword;
-    password = _parentFolders.back().Password;
+    UStringVector filePaths;
+    UString folderPrefix;
+
+    if (useTemp)
+      folderPrefix = tempDirPrefix;
+    else
+      folderPrefix = GetFsPath();
+
+    filePaths.ClearAndReserve(indices.Size());
+
+    FOR_VECTOR (i, indices)
+    {
+      const UInt32 index = indices[i];
+      UString s;
+      if (useFullItemPaths)
+        s = GetItemRelPath(index);
+      else
+        s = GetItemName(index);
+      filePaths.AddInReserved(s);
+    }
+
+    // upstream destPanel.CopyFrom()
+    CFolderOpPassword pw = destPanel.CurrentPassword();
+    UStringVector messages;
+    result = FolderOp_CopyFrom(destPanel._folderOperations, move, folderPrefix, filePaths, pw, &messages);
+    destPanel.StorePassword(pw);
+    if (result != S_OK && !messages.IsEmpty())
+      result = E_FAIL;  // already shown
   }
-  const HRESULT result = CopyTo(options, indices, NULL, usePassword, password);
-  if (!_parentFolders.isEmpty() && result == S_OK)
+
+  if (result != S_OK)
   {
-    _parentFolders.back().UsePassword = usePassword;
-    _parentFolders.back().Password = password;
+    if (result != E_ABORT && result != E_FAIL)
+      MessageBox_Error_HRESULT(result);
   }
-  if (result != S_OK && result != E_ABORT && result != E_FAIL)
-    MessageBox_Error_HRESULT(result);
-  RefreshListCtrl_SaveFocused();
+
+  if (copyToSame || move)
+  {
+    RefreshListCtrl(srcSelState);
+  }
+
+  if (!copyToSame)
+  {
+    destPanel.RefreshListCtrl(destSelState);
+    _selection->clearSelection();
+  }
+
+  FocusList();
+}
+
+void Panel::OpenSubFolderIn(Panel &destPanel)
+{
+  // upstream CApp::OnSetSubFolder binds the other panel to the folder object
+  // of this one; here the other panel opens the path itself, so each panel
+  // keeps its own archive objects
+  const int focusedItem = FocusedRealIndex();
+  if (focusedItem < 0)
+    return;
+  if (!IsItem_Folder((unsigned)focusedItem))
+    return;
+  UString path = GetFsPath() + GetItemRelPath((unsigned)focusedItem);
+  path.Add_PathSepar();
+  destPanel.BindToPathAndRefresh(path);
 }
 
 // ---------- Extract / Test ----------

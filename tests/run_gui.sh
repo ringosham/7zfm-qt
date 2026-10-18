@@ -84,6 +84,47 @@ else
   echo "SKIP: drag-out D-Bus check (no dbus-run-session)"
 fi
 
+# two panels (F9): each test gets its own config with the second panel's folder
+P="$WORK/panels"
+mkdir -p "$P/src/sub" "$P/out1" "$P/arc3" "$P/f9"
+echo one > "$P/src/a.txt"; echo two > "$P/src/b.txt"; echo sub > "$P/src/sub/x.txt"
+(cd "$P/src" && "$SEVENZZ" a "$P/t.zip" a.txt b.txt >/dev/null && "$SEVENZZ" a "$P/t.7z" a.txt >/dev/null \
+  && "$SEVENZZ" a "$P/arc3/u.7z" a.txt >/dev/null)
+panels() {  # panels <name> <NumPanels> <second panel folder> app-args...
+  n=$1; mkdir -p "$P/cfg-$n/7zfm-qt"
+  printf '[MainWindow]\nNumPanels=%s\n\n[Software]\n7-Zip\\FM\\PanelPath1=%s\n' "$2" "$3" > "$P/cfg-$n/7zfm-qt/7zfm-qt.conf"
+  shift 3
+  env XDG_CONFIG_HOME="$P/cfg-$n" timeout 60 "$APP" "$@" >/dev/null 2>&1
+}
+
+DESC="GUI: two panels: F5 copies from an archive to the other panel's folder"
+check panels 1 2 "$P/out1/" "$P/t.zip/" --select a.txt --keys "F5,@wait,Return,@wait,@wait" --screenshot "$WORK/p1.png"
+check cmp -s "$P/out1/a.txt" "$P/src/a.txt"
+
+DESC="GUI: two panels: F5 from a folder adds to the archive in the other panel"
+check panels 2 2 "$P/t.7z/" "$P/src/" --select b.txt --keys "F5,@wait,Return,@wait,@wait" --screenshot "$WORK/p2.png"
+check sh -c "'$SEVENZZ' e -so '$P/t.7z' b.txt 2>/dev/null | grep -q two"
+
+DESC="GUI: two panels: F5 archive -> archive goes through a temp folder"
+check panels 3 2 "$P/arc3/u.7z/" "$P/t.zip/" --select b.txt --keys "F5,@wait,Return,@wait,@wait" --screenshot "$WORK/p3.png"
+check sh -c "'$SEVENZZ' e -so '$P/arc3/u.7z' b.txt 2>/dev/null | grep -q two"
+
+DESC="GUI: F9 shows the second panel at its saved folder; F5 targets it"
+check panels 4 1 "$P/f9/" "$P/t.zip/" --select a.txt --keys "F9,@wait,F5,@wait,Return,@wait,@wait" --screenshot "$WORK/p4.png"
+check test -f "$P/f9/a.txt"
+
+DESC="GUI: Shift+F5 copies the focused item under a new name in the same folder"
+check panels 5 1 "" "$P/src/" --select a.txt --keys "Shift+F5,@wait,Ctrl+A,@type:a-copy.txt,Return,@wait" --screenshot "$WORK/p5.png"
+check cmp -s "$P/src/a-copy.txt" "$P/src/a.txt"
+
+DESC="GUI: Alt+Right opens the folder in the other panel; Tab switches panels"
+check panels 6 2 "$P/out1/" "$P/src/" --select sub --keys "Alt+Right,@wait,Tab,F5,@wait,Return,@wait,@wait" --screenshot "$WORK/p6.png"
+check cmp -s "$P/src/x.txt" "$P/src/sub/x.txt"
+
+DESC="GUI: Alt+Up shows the same folder in the other panel"
+check panels 7 2 "$P/out1/" "$P/src/" --select b.txt --keys "Alt+Up,@wait,F5,@wait,Return,@wait" --screenshot "$WORK/p7.png"
+check grep -q "onto itself" "$WORK/p7.png.txt"
+
 DESC="GUI: split into 1 MB volumes and combine back"
 mkdir -p "$WORK/split/comb" && cp "$FX/content/docs/random.bin" "$WORK/split/"
 check run "$WORK/split/" --select random.bin --action split --keys "Tab,Tab,Ctrl+A,@type:1M,Return" --screenshot "$WORK/s10.png"

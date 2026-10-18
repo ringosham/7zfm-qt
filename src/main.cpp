@@ -71,21 +71,10 @@ int main(int argc, char *argv[])
     else if (start.isEmpty())
       start = QFileInfo(args[i]).absoluteFilePath();
   }
-  if (start.isEmpty())
-  {
-    // like upstream: reopen the last folder
-    UString last;
-    if (ReadPanelPath(0, last) && !last.IsEmpty())
-      start = ToQ(last);
-    else
-      start = QDir::homePath() + QLatin1Char('/');
-  }
   // open the start path from the event loop: the window appears first, and
-  // a slow open (or its password prompt) runs with the usual progress UI
-  QTimer::singleShot(0, &w, [&w, start]() {
-    w.GetPanel()->BindToStartPath(ToU(start));
-    w.GetPanel()->FocusList();
-  });
+  // a slow open (or its password prompt) runs with the usual progress UI.
+  // Without one, each panel reopens its last folder, like upstream.
+  QTimer::singleShot(0, &w, [&w, start]() { w.OpenStartPaths(start); });
 
   if (!screenshot.isEmpty())
   {
@@ -123,7 +112,8 @@ int main(int argc, char *argv[])
           else if (a == QLatin1String("split")) w.GetPanel()->Split();
           else if (a.startsWith(QLatin1String("hash:"))) w.GetPanel()->CalculateCrc(qstrdup(a.mid(5).toLatin1().constData()));
           else if (a == QLatin1String("benchmark")) Benchmark(false);
-          else if (a == QLatin1String("copy")) w.GetPanel()->CopyToDialog(false);
+          else if (a == QLatin1String("copy")) w.OnCopy(false, false);
+          else if (a == QLatin1String("move")) w.OnCopy(true, false);
           else if (a == QLatin1String("flat")) w.GetPanel()->SetFlatMode(true);
           else if (a == QLatin1String("options")) { extern bool OptionsDialog(); OptionsDialog(); }
           else if (a == QLatin1String("combine")) w.GetPanel()->Combine();

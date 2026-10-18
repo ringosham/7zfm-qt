@@ -42,6 +42,12 @@ It uses upstream 7-Zip 26.04 unmodified, and as much of upstream's own GUI code 
 - Options: the Settings, Folders and Editor pages.
 
 **Interface**
+- Two panels (F9), as in 7zFM:
+  - Tab switches panels.
+  - F5/F6 copy or move to the other panel's folder: out of an archive, into one, or from archive to archive through a temp folder.
+  - Shift+F5/F6 copy under a new name in the same folder.
+  - Alt+Up shows the same folder in the other panel; Alt+Left/Right opens the focused subfolder there.
+  - The panel count, the focused panel, each panel's folder and view mode are saved.
 - Flat view, column layouts saved per folder type, sorting like 7zFM.
 - Favorites (Alt+Shift+N to set, Alt+N to go), folder history, properties (Alt+Enter) with every archive level's info.
 
@@ -101,7 +107,6 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 
 ## Differences from Windows 7zFM
 
-- **One panel.** No dual-pane mode.
 - **Options.** The System (file associations) and 7-Zip (Explorer menu) pages are left out; use your desktop's "Open with" instead, since the `.desktop` file registers the MIME types. There is no Language page yet.
 - **Not applicable on Linux:** NTFS alternate streams, security descriptors, Mark-of-the-Web, large pages, junctions and WSL links.
 - **View and Edit** with no program set in Options > Editor: F3 opens the file's default application and F4 the desktop's default text editor. Upstream uses Notepad for both.
