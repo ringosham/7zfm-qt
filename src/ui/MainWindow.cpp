@@ -8,6 +8,7 @@
 #include "7zip/UI/FileManager/ViewSettings.h"
 
 #include "Panel.h"
+#include "CompressCall.h"
 #include "QtConv.h"
 
 #include <QAction>
@@ -141,6 +142,18 @@ void MainWindow::CreateMenus()
   a = file->addAction(M(IDM_COMMENT, "Comme&nt..."), this, [this]() { _panel->ChangeComment(); });
   a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
   a->setShortcutContext(Qt::WidgetShortcut);
+  {
+    QMenu *crc = file->addMenu(QStringLiteral("CRC"));
+    static const char *const kMethods[] = { "CRC32", "CRC64", "XXH64", "MD5", "SHA1", "SHA256",
+        "SHA384", "SHA512", "SHA3-256", "BLAKE2sp", "*" };
+    static const char *const kNames[] = { "CRC-32", "CRC-64", "XXH64", "MD5", "SHA-1", "SHA-256",
+        "SHA-384", "SHA-512", "SHA3-256", "BLAKE2sp", "*" };
+    for (unsigned i = 0; i < sizeof(kMethods) / sizeof(kMethods[0]); i++)
+    {
+      const char *m = kMethods[i];
+      crc->addAction(QString::fromLatin1(kNames[i]), this, [this, m]() { _panel->CalculateCrc(m); });
+    }
+  }
   file->addSeparator();
   a = file->addAction(M(IDM_CREATE_FOLDER, "Create Folder"), this, [this]() { _panel->CreateFolder(); });
   a->setShortcut(QKeySequence(Qt::Key_F7));
@@ -196,6 +209,9 @@ void MainWindow::CreateMenus()
   tools->addAction(tr("&Add to archive..."), this, [this]() { _panel->AddToArchive(); });
   tools->addAction(tr("E&xtract..."), this, [this]() { _panel->ExtractArchives(); });
   tools->addAction(tr("&Test"), this, [this]() { _panel->TestArchives(); });
+  tools->addSeparator();
+  tools->addAction(M(IDM_BENCHMARK, "&Benchmark"), this, []() { Benchmark(false); });
+  tools->addAction(M(IDM_BENCHMARK2, "Benchmark 2"), this, []() { Benchmark(true); });
 
   // ---- Help ----
   QMenu *help = menuBar()->addMenu(M(IDM_HELP, "&Help"));

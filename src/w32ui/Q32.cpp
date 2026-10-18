@@ -6,6 +6,7 @@
 #include <QCloseEvent>
 #include <QComboBox>
 #include <QDialog>
+#include <QFont>
 #include <QFontMetrics>
 #include <QGroupBox>
 #include <QIntValidator>
@@ -756,7 +757,11 @@ static LRESULT GenericMessage(QWidget *wd, UINT msg, WPARAM w, LPARAM l, bool wi
     case WM_GETTEXT: return wide ? CopyOutW(GetText(wd), (LPWSTR)l, (int)w) : CopyOutA(GetText(wd), (LPSTR)l, (int)w);
     case WM_GETTEXTLENGTH: return wide ? GetWindowTextLengthW(H(wd)) : GetWindowTextLengthA(H(wd));
     case WM_SETREDRAW: wd->setUpdatesEnabled(w != 0); if (w) wd->update(); return 0;
-    case WM_SETFONT: case WM_GETFONT: case WM_SETICON: return 0;
+    case WM_SETFONT:
+      if (w)
+        wd->setFont(*reinterpret_cast<const QFont *>(w));
+      return 0;
+    case WM_GETFONT: case WM_SETICON: return 0;
     case WM_CLOSE:
       if (auto *d = dynamic_cast<Q32Dialog *>(wd)) { d->Command(IDCANCEL, BN_CLICKED, nullptr); return 0; }
       wd->close();
@@ -1203,3 +1208,25 @@ HANDLE LoadImageW(HINSTANCE, LPCWSTR, UINT, int, int, UINT) { return NULL; }
 BOOL DestroyIcon(HICON) { return TRUE; }
 
 void Sleep(DWORD ms) { usleep((useconds_t)ms * 1000); }
+
+// HFONT is a QFont*
+HFONT CreateFontIndirectA(const LOGFONTA *lf)
+{
+  QFont *f = new QFont(QApplication::font());
+  if (lf)
+  {
+    if ((lf->lfPitchAndFamily & 3) == FIXED_PITCH)
+      f->setFamilies({ QStringLiteral("monospace") }), f->setStyleHint(QFont::Monospace), f->setFixedPitch(true);
+    if (lf->lfFaceName[0])
+      f->setFamily(QString::fromLatin1(lf->lfFaceName));
+    if (lf->lfWeight >= FW_BOLD)
+      f->setBold(true);
+  }
+  return (HFONT)f;
+}
+
+BOOL DeleteObject(HGDIOBJ obj)
+{
+  delete reinterpret_cast<QFont *>(obj);
+  return TRUE;
+}

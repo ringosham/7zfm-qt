@@ -588,6 +588,43 @@ BOOL DestroyIcon(HICON icon);
 
 void Sleep(DWORD ms);
 
+// GDI fonts (BenchmarkDialog's fixed-pitch console)
+typedef struct tagLOGFONTA
+{
+  LONG lfHeight;
+  LONG lfWidth;
+  LONG lfEscapement;
+  LONG lfOrientation;
+  LONG lfWeight;
+  BYTE lfItalic;
+  BYTE lfUnderline;
+  BYTE lfStrikeOut;
+  BYTE lfCharSet;
+  BYTE lfOutPrecision;
+  BYTE lfClipPrecision;
+  BYTE lfQuality;
+  BYTE lfPitchAndFamily;
+  CHAR lfFaceName[32];
+} LOGFONTA, LOGFONT;
+#define FW_DONTCARE 0
+#define FW_NORMAL 400
+#define FW_BOLD 700
+#define DEFAULT_CHARSET 1
+#define OUT_DEFAULT_PRECIS 0
+#define CLIP_DEFAULT_PRECIS 0
+#define DEFAULT_QUALITY 0
+#define DEFAULT_PITCH 0
+#define FIXED_PITCH 1
+#define VARIABLE_PITCH 2
+HFONT CreateFontIndirectA(const LOGFONTA *lf);
+#define CreateFontIndirect CreateFontIndirectA
+BOOL DeleteObject(HGDIOBJ obj);
+
+#include <string.h>
+inline LPSTR lstrcat(LPSTR a, LPCSTR b) { return strcat(a, b); }
+inline LPSTR lstrcpy(LPSTR a, LPCSTR b) { return strcpy(a, b); }
+inline int lstrlen(LPCSTR a) { return (int)strlen(a); }
+
 // The dialog layouts generated from upstream .rc files.
 struct CDlgItemTemplate
 {

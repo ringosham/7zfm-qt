@@ -10,6 +10,7 @@
 #include "7zip/UI/FileManager/LangUtils.h"
 #include "7zip/UI/GUI/ExtractRes.h"
 #include "7zip/UI/GUI/UpdateGUI.h"
+#include "7zip/UI/GUI/BenchmarkDialog.h"
 
 #include "CompressCall.h"
 #include "Messages.h"
@@ -114,4 +115,26 @@ HRESULT CompressFiles(
 
   MY_TRY_FINISH
   return S_OK;
+}
+
+void Benchmark(bool totalMode)
+{
+  MY_TRY_BEGIN
+
+  CREATE_CODECS
+
+  CObjectVector<CProperty> props;
+  if (totalMode)
+  {
+    CProperty prop;
+    prop.Name = "m";
+    prop.Value = "*";
+    props.Add(prop);
+  }
+  result = Benchmark(
+      props,
+      k_NumBenchIterations_Default,
+      g_HWND);
+
+  MY_TRY_FINISH
 }

@@ -16,6 +16,9 @@ HRESULT CompressFiles(
     const UStringVector &names,
     bool email, bool showDialog, bool waitFinish);
 
+void Benchmark(bool totalMode);
+HRESULT CalculateCrcFs(const UString &methodName, const UString &basePrefix, const UStringVector &relPaths);
+
 void ExtractArchives(const UStringVector &arcPaths, const UString &outFolder, bool showDialog, bool elimDup, UInt32 writeZone);
 void TestArchives(const UStringVector &arcPaths, bool hashMode = false);
 

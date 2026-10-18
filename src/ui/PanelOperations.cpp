@@ -19,6 +19,7 @@
 #include "QtConv.h"
 #include "SplitPanel.h"
 #include "LinkDialog.h"
+#include "CompressCall.h"
 
 #include <QAbstractItemView>
 #include <QFile>
@@ -372,6 +373,36 @@ public:
   UString GetFsPath() const override { return _p.GetFsPath(); }
   void MessageBox_Error(const UString &message) override { _p.MessageBox_Error(message); }
 };
+
+// upstream CApp::CalculateCrc / CalculateCrc2
+void Panel::CalculateCrc(const char *methodName)
+{
+  CRecordVector<UInt32> indices;
+  Get_ItemIndices_Operated(indices);
+  if (indices.IsEmpty())
+    return;
+  HRESULT res;
+  if (!IsFSFolder())
+  {
+    CCopyToOptions options;
+    options.streamMode = true;
+    options.showErrorMessages = true;
+    options.hashMethods.Add(UString(methodName));
+    UStringVector messages;
+    CFolderOpPassword pw = CurrentPassword();
+    res = CopyTo(options, indices, &messages, pw.UsePassword, pw.Password);
+    StorePassword(pw);
+  }
+  else
+  {
+    UStringVector relPaths;
+    FOR_VECTOR (i, indices)
+      relPaths.Add(GetItemRelPath(indices[i]));
+    res = CalculateCrcFs(UString(methodName), GetFsPath(), relPaths);
+  }
+  if (res != S_OK && res != E_ABORT)
+    MessageBox_Error_HRESULT(res);
+}
 
 void Panel::Link()
 {

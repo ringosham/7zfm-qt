@@ -133,6 +133,7 @@ public:
   void ChangeComment();                   // Ctrl+Z
   void DropFiles(const QStringList &paths, bool moveMode);
   void Link();                            // upstream CApp::Link
+  void CalculateCrc(const char *methodName);  // upstream CApp::CalculateCrc
   void Split();                           // upstream CApp::Split
   void Combine();                         // upstream CApp::Combine
   bool CanModify() const { return _folderOperations != nullptr; }
