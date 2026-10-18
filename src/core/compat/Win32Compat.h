@@ -1,11 +1,17 @@
-// Force-included (-include) into the upstream files that use
-// Windows/Registry.h, so they compile unchanged on POSIX. The CKey class
-// itself is implemented on QSettings in RegistryQt.cpp.
+// Force-included (-include) into the upstream FileManager/settings files we
+// compile unchanged, so the few Win32 types they mention exist on POSIX.
+// NWindows::NRegistry::CKey itself is implemented on QSettings in
+// RegistryQt.cpp; resource strings come from Lang.cpp.
 
-#ifndef Z7QT_REGISTRY_COMPAT_H
-#define Z7QT_REGISTRY_COMPAT_H
+#ifndef Z7QT_WIN32_COMPAT_H
+#define Z7QT_WIN32_COMPAT_H
 
 #include "Common/MyWindows.h"
+
+#ifndef _WIN32
+typedef void *HINSTANCE;
+typedef void *HWND;
+#endif
 
 struct Z7RegKey;
 typedef Z7RegKey *HKEY;

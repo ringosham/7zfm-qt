@@ -34,8 +34,9 @@ set(SEVENZIP_SETTINGS_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/RegistryUtils.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/ViewSettings.cpp
   src/core/RegistryQt.cpp)
+set(WIN32_COMPAT_INCLUDE "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/core/compat/Win32Compat.h")
 set_source_files_properties(${SEVENZIP_SETTINGS_SOURCES} PROPERTIES
-  COMPILE_OPTIONS "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/core/compat/RegistryCompat.h")
+  COMPILE_OPTIONS "${WIN32_COMPAT_INCLUDE}")
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 
@@ -62,6 +63,27 @@ target_include_directories(7zcore PUBLIC
 set_target_properties(7zcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
 find_package(Threads REQUIRED)
 target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads ${CMAKE_DL_LIBS})
+
+# ---- fmlogic: FileManager logic (ported in src/fm, plus upstream files that
+# compile unchanged), no widgets ----
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(LANG_TABLE ${CMAKE_CURRENT_BINARY_DIR}/generated/LangTable.inc)
+file(GLOB_RECURSE UPSTREAM_RC CONFIGURE_DEPENDS
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/*.rc ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/*.rc)
+add_custom_command(OUTPUT ${LANG_TABLE}
+  COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen-lang.py ${SEVENZIP_DIR} ${LANG_TABLE}
+  DEPENDS tools/gen-lang.py ${UPSTREAM_RC}
+  COMMENT "Extracting 7-Zip resource strings")
+
+file(GLOB FM_SOURCES CONFIGURE_DEPENDS src/fm/*.cpp)
+set(FM_UPSTREAM_SOURCES
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/FormatUtils.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/PropertyName.cpp)
+add_library(fmlogic OBJECT ${FM_SOURCES} ${FM_UPSTREAM_SOURCES} src/core/Lang.cpp ${LANG_TABLE})
+target_compile_options(fmlogic PRIVATE ${WIN32_COMPAT_INCLUDE})
+target_include_directories(fmlogic PUBLIC src/fm src/core
+  PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_link_libraries(fmlogic PUBLIC 7zcore)
 
 # ---- tests ----
 enable_testing()

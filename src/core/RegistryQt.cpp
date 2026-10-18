@@ -4,7 +4,7 @@
 // ("Software/7-Zip/Compression/Options/7z/...") inside an INI file at
 // ~/.config/7zfm-qt/7zfm-qt.conf.
 
-#include "compat/RegistryCompat.h"
+#include "compat/Win32Compat.h"
 
 #include "Common/Common.h"
 #include "Common/StringConvert.h"
