@@ -53,6 +53,37 @@ echo dropped > "$WORK/add/drop.txt"
 check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/drop.txt" --keys "@wait,@wait" --screenshot "$WORK/s9.png"
 check sh -c "'$SEVENZZ' e -so '$WORK/add/content.7z' content/drop.txt 2>/dev/null | grep -q dropped"
 
+# View/Edit with no Viewer/Editor configured, with stub programs (nothing
+# opens on the desktop): F3 -> the file's default app via xdg-open,
+# F4 -> the text/plain default from mimeapps.list
+L="$WORK/launch"
+mkdir -p "$L/bin" "$L/cfg" "$L/data/applications"
+for t in xdg-open fakeedit; do
+  printf '#!/bin/sh\necho "%s $*" >> "%s/log"\n' "$t" "$L" > "$L/bin/$t"; chmod +x "$L/bin/$t"
+done
+printf '[Desktop Entry]\nType=Application\nName=Fake Edit\nExec="%s/bin/fakeedit" -b %%U\n' "$L" > "$L/data/applications/fake-editor.desktop"
+printf '[Default Applications]\ntext/plain=missing.desktop;fake-editor.desktop\n' > "$L/cfg/mimeapps.list"
+launch() { env PATH="$L/bin:$PATH" XDG_CONFIG_HOME="$L/cfg" XDG_DATA_HOME="$L/data" timeout 60 "$APP" "$@" >/dev/null 2>&1; }
+
+DESC="GUI: View (F3) in an archive opens the default app via xdg-open"
+check launch "$WORK/add/content.7z/content/" --select drop.txt --keys "F3,@wait" --screenshot "$WORK/v1.png"
+check grep -q "^xdg-open .*/7zO.*/drop.txt$" "$L/log"
+
+DESC="GUI: Edit (F4) in an archive opens the desktop's text editor"
+: > "$L/log"
+check launch "$WORK/add/content.7z/content/" --select drop.txt --keys "F4,@wait" --screenshot "$WORK/v2.png"
+check grep -q "^fakeedit -b file:///.*/7zO.*/drop.txt$" "$L/log"
+
+if command -v dbus-run-session >/dev/null 2>&1; then
+  DESC="GUI: drop on a KIO target (Ark DnD D-Bus call) copies out of the archive"
+  mkdir -p "$WORK/dnd"
+  check dbus-run-session -- sh -c 'timeout 60 "$@" >/dev/null 2>&1' sh "$APP" "$WORK/add/content.7z/content/" \
+    --select drop.txt --action "dnd:$WORK/dnd" --keys "@wait,@wait" --screenshot "$WORK/d1.png"
+  check grep -q dropped "$WORK/dnd/drop.txt"
+else
+  echo "SKIP: drag-out D-Bus check (no dbus-run-session)"
+fi
+
 DESC="GUI: split into 1 MB volumes and combine back"
 mkdir -p "$WORK/split/comb" && cp "$FX/content/docs/random.bin" "$WORK/split/"
 check run "$WORK/split/" --select random.bin --action split --keys "Tab,Tab,Ctrl+A,@type:1M,Return" --screenshot "$WORK/s10.png"

@@ -9,15 +9,20 @@
 #include "ui/MainWindow.h"
 #include "ui/Panel.h"
 #include "ui/UiHooksQt.h"
+#include "ui/DndExtract.h"
 #include "FmProgress.h"
 #include "CompressCall.h"
 #include "QtConv.h"
 
 #include <QApplication>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCall>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
+#include <QMimeData>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMessageBox>
@@ -126,6 +131,20 @@ int main(int argc, char *argv[])
           else if (a.startsWith(QLatin1String("drop:"))) w.GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);
           else if (a == QLatin1String("test")) w.GetPanel()->TestArchives();
           else if (a == QLatin1String("properties")) w.GetPanel()->Properties();
+          else if (a.startsWith(QLatin1String("dnd:")))
+          {
+            // a drop on Dolphin: KIO's DropJob calls the Ark DnD object
+            std::unique_ptr<QMimeData> mime(w.GetPanel()->CreateDragData());
+            if (mime && mime->hasFormat(QLatin1String(DndExtract::ServiceMimeType())))
+            {
+              QDBusMessage m = QDBusMessage::createMethodCall(
+                  QString::fromUtf8(mime->data(QLatin1String(DndExtract::ServiceMimeType()))),
+                  QString::fromUtf8(mime->data(QLatin1String(DndExtract::PathMimeType()))),
+                  QStringLiteral("org.kde.ark.DndExtract"), QStringLiteral("extractSelectedFilesTo"));
+              m.setArguments({a.mid(4)});
+              QDBusConnection::sessionBus().asyncCall(m);
+            }
+          }
           return;
         }
         const QKeySequence seq(keys[i]);

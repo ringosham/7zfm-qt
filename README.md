@@ -23,14 +23,14 @@ It uses upstream 7-Zip 26.04 unmodified, and as much of upstream's own GUI code 
 - Extract, using upstream's Extract dialog logic.
 - Test.
 - Copy To (F5) out of archives.
-- Drag out to other applications.
+- Drag out to other applications. Dropping on Dolphin or the Plasma desktop copies straight away, without the Copy/Move/Link menu, through the same D-Bus call Ark uses.
 - Password, overwrite and memory-limit prompts.
 
 **Editing archives**
 - Add to Archive, using upstream's own CompressDialog.
 - Delete, rename (F2), Create Folder (F7), Create File (Ctrl+N) and Comment (Ctrl+Z) inside archives.
 - Drag files in to add them.
-- Edit with F4: a file changed in another application is offered for update in the archive, as in 7zFM.
+- View (F3) and Edit (F4): a file changed in another application is offered for update in the archive, as in 7zFM.
 
 **File management**
 - File-system operations: copy, move, rename, delete (to trash, or permanently with Shift+Del), new file and new folder.
@@ -104,6 +104,7 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 - **One panel.** No dual-pane mode.
 - **Options.** The System (file associations) and 7-Zip (Explorer menu) pages are left out; use your desktop's "Open with" instead, since the `.desktop` file registers the MIME types. There is no Language page yet.
 - **Not applicable on Linux:** NTFS alternate streams, security descriptors, Mark-of-the-Web, large pages, junctions and WSL links.
+- **View and Edit** with no program set in Options > Editor: F3 opens the file's default application and F4 the desktop's default text editor. Upstream uses Notepad for both.
 - **Drag-out** extracts when the drag starts, because X11 and Wayland need paths up front. Windows waits for the drop.
 - **RAR.** Extraction only, as upstream; 7-Zip has no RAR encoder. RAR test fixtures are skipped unless the `rar` CLI is installed.
 

@@ -25,6 +25,9 @@
 
 #include "ExtractCallback.h"
 
+#include "DesktopLaunch.h"
+#include "DndExtract.h"
+
 #include "FileFolderPluginOpen.h"
 #include "FolderModel.h"
 #include "IconProvider.h"
@@ -38,7 +41,6 @@
 
 #include <QApplication>
 #include <QComboBox>
-#include <QDesktopServices>
 #include <QFileInfo>
 #include <QDateTime>
 #include <QDrag>
@@ -914,24 +916,25 @@ std::shared_ptr<QTemporaryDir> Panel::CreateTempDir()
 
 bool Panel::StartApplication(const UString &path, bool editMode, bool useEditor)
 {
+  const QString file = ToQ(path);
   if (editMode)
   {
     // upstream: F3 uses the configured Viewer, F4 the Editor (Options > Editor)
-    UString editor;
-    ReadRegEditor(useEditor, editor);
-    if (!editor.IsEmpty())
+    UString command;
+    ReadRegEditor(useEditor, command);
+    if (!command.IsEmpty())
     {
-      QStringList args = QProcess::splitCommand(ToQ(editor));
-      if (!args.isEmpty())
-      {
-        const QString prog = args.takeFirst();
-        args << ToQ(path);
-        if (QProcess::startDetached(prog, args))
-          return true;
-      }
+      if (DesktopLaunch::RunCommand(ToQ(command), file))
+        return true;
+      MessageBox_Error(LangString(IDS_CANNOT_START_EDITOR));
+      return false;
     }
+    // upstream falls back to notepad.exe for both; here F4 opens the
+    // desktop's text editor and F3 (View) the file's default application
+    if (useEditor)
+      return DesktopLaunch::OpenInTextEditor(file);
   }
-  return QDesktopServices::openUrl(QUrl::fromLocalFile(ToQ(path)));
+  return DesktopLaunch::OpenWithDefaultApp(file);
 }
 
 void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal,
@@ -1568,14 +1571,15 @@ void Panel::SelectByName(const QString &name)
 
 // ---------- drag out (upstream PanelDrag.cpp) ----------
 
-void Panel::StartDrag()
+QMimeData *Panel::CreateDragData()
 {
   CRecordVector<UInt32> indices;
   Get_ItemIndices_Operated(indices);
   if (indices.IsEmpty())
-    return;
+    return nullptr;
 
   QList<QUrl> urls;
+  _dragFiles.Clear();
   if (_parentFolders.isEmpty() && IsFSFolder())
   {
     FOR_VECTOR (i, indices)
@@ -1588,7 +1592,7 @@ void Panel::StartDrag()
     // X11/Wayland drag sources need the paths up front.)
     std::shared_ptr<QTemporaryDir> temp = CreateTempDir();
     if (!temp)
-      return;
+      return nullptr;
     UString dir = ToU(temp->path());
     NName::NormalizeDirPathPrefix(dir);
     CCopyToOptions options;
@@ -1604,14 +1608,18 @@ void Panel::StartDrag()
     UStringVector messages;
     const HRESULT res = CopyTo(options, indices, &messages, usePassword, password);
     if (res != S_OK || !messages.IsEmpty())
-      return;
+      return nullptr;
     if (!_parentFolders.isEmpty())
     {
       _parentFolders.back().UsePassword = usePassword;
       _parentFolders.back().Password = password;
     }
     FOR_VECTOR (i, indices)
-      urls << QUrl::fromLocalFile(ToQ(dir + GetItemName(indices[i])));
+    {
+      const UString path = dir + GetItemName(indices[i]);
+      urls << QUrl::fromLocalFile(ToQ(path));
+      _dragFiles.Add(path);
+    }
     _externalTemps.append(temp);  // the drop target may copy lazily
   }
 
@@ -1620,6 +1628,30 @@ void Panel::StartDrag()
   // GNOME/KDE file managers understand this for copy vs. move
   mime->setData(QStringLiteral("x-special/gnome-copied-files"),
       QByteArray("copy\n") + QUrl::toStringList(urls, QUrl::FullyEncoded).join(QLatin1Char('\n')).toUtf8());
+  if (!_dragFiles.IsEmpty())
+  {
+    // KIO targets (Dolphin, the Plasma desktop) then call us back to copy,
+    // instead of asking Copy/Move/Link for the temp files
+    if (!_dndExtract)
+    {
+      _dndExtract = new DndExtract(this);
+      connect(_dndExtract, &DndExtract::ExtractRequested, this,
+          &Panel::CopyDraggedFilesTo, Qt::QueuedConnection);
+    }
+    if (_dndExtract->IsRegistered())
+    {
+      mime->setData(QLatin1String(DndExtract::ServiceMimeType()), _dndExtract->Service().toUtf8());
+      mime->setData(QLatin1String(DndExtract::PathMimeType()), _dndExtract->Path().toUtf8());
+    }
+  }
+  return mime;
+}
+
+void Panel::StartDrag()
+{
+  QMimeData *mime = CreateDragData();
+  if (!mime)
+    return;
   auto *drag = new QDrag(this);
   drag->setMimeData(mime);
   const int focused = FocusedRealIndex();
@@ -1629,7 +1661,46 @@ void Panel::StartDrag()
         : GetIconProvider().ForFile(ToQ(GetItemName((unsigned)focused)));
     drag->setPixmap(icon.pixmap(32, 32));
   }
+  _inDrag = true;
   drag->exec(Qt::CopyAction, Qt::CopyAction);
+  _inDrag = false;
+  const QStringList drops = _pendingDrops;
+  _pendingDrops.clear();
+  for (const QString &d : drops)
+    CopyDraggedFilesTo(d);
+}
+
+void Panel::CopyDraggedFilesTo(const QString &dest)
+{
+  if (_inDrag)
+  {
+    // the copy runs a progress loop: not inside the drag's own loop
+    _pendingDrops << dest;
+    return;
+  }
+  if (_dragFiles.IsEmpty())
+    return;
+  // KIO passes a local path, or a URL for other destinations
+  QString dir = dest;
+  if (!dir.startsWith(QLatin1Char('/')))
+  {
+    const QUrl url(dest);
+    if (!url.isLocalFile())
+    {
+      MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED) + L"\n" + ToU(dest));
+      return;
+    }
+    dir = url.toLocalFile();
+  }
+  CCopyToOptions options;
+  options.folder = ToU(dir);
+  NName::NormalizeDirPathPrefix(options.folder);
+  options.showErrorMessages = true;
+  bool usePassword = false;
+  UString password;
+  CRecordVector<UInt32> none;
+  const UStringVector files = _dragFiles;  // a new drag may start meanwhile
+  CopyTo(options, none, NULL, usePassword, password, &files);
 }
 
 // ---------- properties ----------

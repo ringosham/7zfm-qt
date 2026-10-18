@@ -1,4 +1,4 @@
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Test)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets DBus Test)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -9,7 +9,7 @@ target_compile_definitions(7zfm-qt PRIVATE Z7QT_VERSION="${PROJECT_VERSION}")
 target_include_directories(7zfm-qt PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ui)
 # 7zcore listed directly: object files only reach targets that link them
 # directly, and every format/codec object must be linked (static registration).
-target_link_libraries(7zfm-qt PRIVATE w32ui fmlogic 7zcore Qt6::Widgets Qt6::Test)
+target_link_libraries(7zfm-qt PRIVATE w32ui fmlogic 7zcore Qt6::Widgets Qt6::DBus Qt6::Test)
 include(GNUInstallDirs)
 install(TARGETS 7zfm-qt RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/7zfm-qt.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)

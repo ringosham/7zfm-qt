@@ -22,7 +22,9 @@
 
 #include <memory>
 
+class DndExtract;
 class QComboBox;
+class QMimeData;
 class QListView;
 class QStackedWidget;
 class QTemporaryDir;
@@ -148,6 +150,7 @@ public:
 
   void Properties();
   void StartDrag();                        // drag selected items out
+  QMimeData *CreateDragData();             // StartDrag's data (tests use it too)
   void SelectByName(const QString &name);  // focus + select one item
   void SetViewMode(int mode);  // 0 large icons, 1 small icons, 2 list, 3 details
   void ApplySettings();        // upstream CFmSettings (Options > Settings)
@@ -245,6 +248,13 @@ private:
   bool _singleClick = false;
   bool _flatMode = false;
   QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
+
+  // drag out of an archive to KDE file managers (see DndExtract.h)
+  void CopyDraggedFilesTo(const QString &dest);
+  DndExtract *_dndExtract = nullptr;
+  UStringVector _dragFiles;     // the extracted temp copies being dragged
+  bool _inDrag = false;
+  QStringList _pendingDrops;    // drops reported while QDrag::exec still runs
 
   // files from archives being edited in other applications (upstream
   // CTmpProcessInfo): written back on change, like 7zFM
