@@ -18,11 +18,17 @@
 
 using namespace NWindows;
 
+static int g_FolderAccessBlocked = 0;
+void FolderAccess_Block() { g_FolderAccessBlocked++; }
+void FolderAccess_Unblock() { g_FolderAccessBlocked--; }
+bool FolderAccess_IsBlocked() { return g_FolderAccessBlocked > 0; }
+
 FolderModel::FolderModel(QObject *parent): QAbstractTableModel(parent) {}
 
 void FolderModel::Clear()
 {
   beginResetModel();
+  _cache.clear();
   _folder.Release();
   _sort.SetFolder(NULL);
   _columns.clear();
@@ -84,6 +90,7 @@ void FolderModel::LoadColumns()
 void FolderModel::SetFolder(IFolderFolder *folder)
 {
   beginResetModel();
+  _cache.clear();
   _folder = folder;
   const PROPID oldSort = _sort.SortID;
   const bool oldAsc = _sort.Ascending;
@@ -121,6 +128,7 @@ void FolderModel::Reload()
   if (!_folder)
     return;
   beginResetModel();
+  _cache.clear();
   _rows.clear();
   UInt32 n = 0;
   _folder->GetNumberOfItems(&n);
@@ -155,6 +163,7 @@ int FolderModel::SortColumn() const { return ColumnOfPropID(_sort.SortID); }
 void FolderModel::SortByPropID(PROPID propID, bool ascending)
 {
   emit layoutAboutToBeChanged();
+  _cache.clear();
   const QModelIndexList old = persistentIndexList();
   QVector<UInt32> oldReal;
   for (const QModelIndex &i : old)
@@ -241,6 +250,21 @@ QVariant FolderModel::data(const QModelIndex &index, int role) const
 {
   if (!index.isValid() || !_folder)
     return QVariant();
+  const quint64 key = ((quint64)(quint32)index.row() << 24) | ((quint64)(index.column() & 0xFFFF) << 8) | (quint64)(role & 0xFF);
+  if (FolderAccess_IsBlocked())
+    return _cache.value(key);
+  QVariant v = DataImpl(index, role);
+  if (role == Qt::DisplayRole || role == Qt::DecorationRole || role == kIsFolderRole)
+  {
+    if (_cache.size() > 20000)
+      _cache.clear();
+    _cache.insert(key, v);
+  }
+  return v;
+}
+
+QVariant FolderModel::DataImpl(const QModelIndex &index, int role) const
+{
   const UInt32 real = _rows[index.row()];
   const CColumn &col = _columns[index.column()];
   switch (role)

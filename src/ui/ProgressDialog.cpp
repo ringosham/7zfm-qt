@@ -263,7 +263,10 @@ void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &ti
     });
     thread->start();
     showTimer.start(waitMode ? 500 : 0);
-    loop.exec();
+    // never return while the worker runs (e.g. if the application is asked
+    // to quit meanwhile): an archive update must not be cut off
+    while (!thread->isFinished())
+      loop.exec();
     thread->wait();
     delete thread;
     if (!dlg.isVisible())

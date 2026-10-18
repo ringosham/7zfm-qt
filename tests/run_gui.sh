@@ -50,7 +50,7 @@ check sh -c "! '$SMOKE' ls '$WORK/add/content.7z' content | grep -q hello.txt"
 
 DESC="GUI: drop files into a 7z (CopyFrom)"
 echo dropped > "$WORK/add/drop.txt"
-check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/drop.txt" --screenshot "$WORK/s9.png"
+check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/drop.txt" --keys "@wait,@wait" --screenshot "$WORK/s9.png"
 check sh -c "'$SEVENZZ' e -so '$WORK/add/content.7z' content/drop.txt 2>/dev/null | grep -q dropped"
 
 DESC="GUI: split into 1 MB volumes and combine back"

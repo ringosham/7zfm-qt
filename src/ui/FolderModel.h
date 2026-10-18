@@ -11,7 +11,16 @@
 #include "ItemSort.h"
 
 #include <QAbstractTableModel>
+#include <QHash>
 #include <QVector>
+
+// While an operation runs on a worker thread (open, extract, update...),
+// the folder objects must not be queried from the GUI thread: an archive
+// being updated is reopened underneath. Upstream 7zFM does the same with
+// CPanel::CDisableNotify. The model then paints what it painted before.
+void FolderAccess_Block();
+void FolderAccess_Unblock();
+bool FolderAccess_IsBlocked();
 
 class FolderModel : public QAbstractTableModel
 {
@@ -65,6 +74,7 @@ public:
   enum { kIsFolderRole = Qt::UserRole + 1, kRealIndexRole };
 
 private:
+  QVariant DataImpl(const QModelIndex &index, int role) const;
   void LoadColumns();
   void Sort();
 
@@ -74,6 +84,7 @@ private:
   QVector<UInt32> _rows;
   bool _isDevicesFolder = false;
   bool _editable = false;
+  mutable QHash<quint64, QVariant> _cache;  // (row, column, role) -> last value
 };
 
 #endif

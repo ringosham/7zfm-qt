@@ -6,6 +6,7 @@
 #include "ExtractDialogQt.h"
 #include "OverwriteDialog.h"
 #include "PanelProperties.h"
+#include "FolderModel.h"
 #include "PasswordDialog.h"
 #include "PropertiesDialog.h"
 #include "ProgressDialog.h"
@@ -36,7 +37,9 @@ QWidget *UiHooksQt::DialogParent() const
 void UiHooksQt::RunWithProgress(CProgressSync &sync, const UString &title,
     const std::function<void()> &work, bool waitMode)
 {
+  FolderAccess_Block();
   ProgressDialog::Run(_parent, sync, ToQ(title), work, waitMode);
+  FolderAccess_Unblock();
 }
 
 bool UiHooksQt::AskPassword(UString &password)
