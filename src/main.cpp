@@ -93,6 +93,7 @@ int main(int argc, char *argv[])
         {
           const QString a = keys[i].mid(8);
           if (a == QLatin1String("extract")) w.GetPanel()->ExtractArchives();
+          else if (a == QLatin1String("add")) w.GetPanel()->AddToArchive();
           else if (a == QLatin1String("test")) w.GetPanel()->TestArchives();
           else if (a == QLatin1String("properties")) w.GetPanel()->Properties();
           return;

@@ -7,11 +7,19 @@
 #ifndef Z7QT_FM_PROGRESS_H
 #define Z7QT_FM_PROGRESS_H
 
+// Same guard as upstream FileManager/ProgressDialog2.h: when this header is
+// force-included, upstream sources that include ProgressDialog2.h (the GUI
+// update callbacks) get these stand-ins instead of the Win32 dialog.
+#define ZIP7_INC_PROGRESS_DIALOG_2_H
+
 #include "Common/MyString.h"
 #include "Common/MyVector.h"
 
 #include "ProgressSync.h"
 #include "UiHooks.h"
+#include "Messages.h"
+
+#include "7zip/UI/FileManager/ProgressDialog2Res.h"
 
 #ifndef _WIN32
 typedef void *HWND;
@@ -32,6 +40,11 @@ public:
   bool MessagesDisplayed;
   bool CompressingMode;
   bool ShowCompressionInfo;
+  int IconID;
+
+  // upstream passes the progress window as the parent of its prompts; ours
+  // are parented by IUiHooks
+  operator HWND() const { return NULL; }
 
   CProgressDialog():
       Ui(g_UiHooks),
@@ -39,11 +52,13 @@ public:
       WaitMode(false),
       MessagesDisplayed(false),
       CompressingMode(true),
-      ShowCompressionInfo(true)
+      ShowCompressionInfo(true),
+      IconID(-1)
       {}
   virtual ~CProgressDialog() {}
 
   void WaitCreating() {}
+  void MyClose() {}
   // upstream calls this on the GUI thread once the work is done
   virtual void ProcessWasFinished_GuiVirt() {}
 };

@@ -225,6 +225,7 @@ set(SEVENZIP_CORE_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/Crypto/ZipStrong.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ArchiveCommandLine.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ArchiveExtractCallback.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ArchiveName.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ArchiveOpenCallback.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/Bench.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/DefaultName.cpp

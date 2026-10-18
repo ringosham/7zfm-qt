@@ -23,6 +23,7 @@
 #include "7zip/UI/FileManager/resource.h"
 #include "7zip/UI/FileManager/resourceGui.h"
 
+#include "7zip/UI/Common/ArchiveName.h"
 #include "CompressCall.h"
 #include "CopyDialog.h"
 #include "ExtractCallback.h"
@@ -523,14 +524,14 @@ static UString GetSubFolderNameForExtract2(const UString &arcPath)
   return s;
 }
 
-void Panel::GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths) const
+void Panel::GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths, bool allowFolders) const
 {
   paths.ClearAndReserve(indices.Size());
   UString prefix = GetFsPath();
   FOR_VECTOR (i, indices)
   {
     const UInt32 index = indices[i];
-    if (IsItem_Folder(index))
+    if (!allowFolders && IsItem_Folder(index))
     {
       paths.Clear();
       break;
@@ -567,6 +568,38 @@ void Panel::ExtractArchives()
       , false  // elimDup
       , (UInt32)(Int32)-1
       );
+  RefreshListCtrl_SaveFocused();
+}
+
+// upstream CPanel::AddToArchive
+void Panel::AddToArchive()
+{
+  if (!_parentFolders.isEmpty() || !IsFSFolder())
+  {
+    MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+    return;
+  }
+  CRecordVector<UInt32> indices;
+  Get_ItemIndices_Operated(indices);
+  if (indices.Size() == 0)
+  {
+    MessageBox_Error(LangString(IDS_SELECT_FILES));
+    return;
+  }
+  const UString destCurDirPrefix = GetFsPath();
+  UStringVector names;
+  GetFilePaths(indices, names, true);
+  UString baseName;
+  const UString arcName = CreateArchiveName(names,
+      false, // isHash
+      NULL,  // CFileInfo *fi
+      baseName);
+  CompressFiles(destCurDirPrefix, arcName, L"",
+      true,   // addExtension
+      names,
+      false,  // email
+      true,   // showDialog
+      false); // waitFinish
   RefreshListCtrl_SaveFocused();
 }
 

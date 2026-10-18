@@ -1,0 +1,15 @@
+/* Fake <CommCtrl.h> for tools/gen-dialogs.py */
+#define LVS_REPORT 0x1
+#define LVS_SINGLESEL 0x4
+#define LVS_SHOWSELALWAYS 0x8
+#define LVS_SHAREIMAGELISTS 0x40
+#define LVS_AUTOARRANGE 0x100
+#define LVS_NOCOLUMNHEADER 0x4000
+#define LVS_NOSORTHEADER 0x8000
+#define UDS_SETBUDDYINT 0x2
+#define UDS_ALIGNRIGHT 0x4
+#define UDS_AUTOBUDDY 0x10
+#define UDS_ARROWKEYS 0x20
+#define UDS_NOTHOUSANDS 0x80
+#define PBS_SMOOTH 0x1
+#define TBS_AUTOTICKS 0x1

@@ -25,7 +25,7 @@ done < "$TMP/list"
 
 grep -v '/UI/Console/' "$TMP/srcs" > "$TMP/core"
 # Extra upstream files the Agent needs that 7zz does not link.
-for f in CPP/Windows/DLL.cpp CPP/Windows/FileSystem.cpp CPP/7zip/UI/Common/WorkDir.cpp; do
+for f in CPP/Windows/DLL.cpp CPP/Windows/FileSystem.cpp CPP/7zip/UI/Common/WorkDir.cpp CPP/7zip/UI/Common/ArchiveName.cpp; do
   (cd "$UP" && ls $f) >> "$TMP/core"
 done
 sort -u -o "$TMP/core" "$TMP/core"

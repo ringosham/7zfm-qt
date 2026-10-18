@@ -120,6 +120,7 @@ public:
   void CopyToDialog(bool moveMode);       // F5 / F6
   void TestArchives();
   void ExtractArchives();                 // toolbar "Extract"
+  void AddToArchive();                    // toolbar "Add"
   UString GetFsPathPublic() const { return GetFsPath(); }
   bool IsFSFolderPublic() const { return IsFSFolder(); }
 
@@ -186,7 +187,7 @@ private:
   HRESULT BindToNestedPath(UString &path);
 
   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
-  void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths) const;
+  void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths, bool allowFolders = false) const;
   UString GetItemName(unsigned realIndex) const;
   UString GetItemRelPath(unsigned realIndex) const;
   bool IsItem_Folder(unsigned realIndex) const;

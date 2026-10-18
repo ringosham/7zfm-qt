@@ -85,6 +85,43 @@ target_include_directories(fmlogic PUBLIC src/fm src/core
   PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(fmlogic PUBLIC 7zcore)
 
+# ---- w32ui: upstream Win32 dialogs on Qt (src/w32ui/Q32) ----
+set(DIALOG_TABLE ${CMAKE_CURRENT_BINARY_DIR}/generated/DialogTemplates.inc)
+add_custom_command(OUTPUT ${DIALOG_TABLE}
+  COMMAND Python3::Interpreter -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen-dialogs.py
+          ${SEVENZIP_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/tools/rcinc ${DIALOG_TABLE}
+  DEPENDS tools/gen-dialogs.py ${UPSTREAM_RC}
+  COMMENT "Compiling 7-Zip dialog templates")
+
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+# upstream sources compiled unchanged against the Q32 layer
+set(W32UI_UPSTREAM_SOURCES
+  ${SEVENZIP_DIR}/CPP/Windows/Window.cpp
+  ${SEVENZIP_DIR}/CPP/Windows/Control/Dialog.cpp
+  ${SEVENZIP_DIR}/CPP/Windows/Control/ComboBox.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/SplitUtils.cpp
+  src/gui/CompressDialog.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/PasswordDialog.cpp
+  src/w32ui/Seams.cpp)
+# upstream update GUI: uses CProgressThreadVirt -> the FmProgress stand-in
+set(UPDATE_GUI_SOURCES
+  ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateGUI.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateCallbackGUI.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateCallbackGUI2.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/UpdateCallback100.cpp
+  src/gui/CompressCall2.cpp)
+set(Q32_INCLUDE "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/w32ui/Q32.h")
+set_source_files_properties(${W32UI_UPSTREAM_SOURCES} PROPERTIES COMPILE_OPTIONS "${Q32_INCLUDE}")
+set_source_files_properties(${UPDATE_GUI_SOURCES} PROPERTIES COMPILE_OPTIONS
+  "${Q32_INCLUDE};-include;${CMAKE_CURRENT_SOURCE_DIR}/src/fm/FmProgress.h")
+add_library(w32ui OBJECT src/w32ui/Q32.cpp ${W32UI_UPSTREAM_SOURCES} ${UPDATE_GUI_SOURCES} ${DIALOG_TABLE})
+# copies in src/gui keep upstream's relative includes ("../FileManager/...")
+set_source_files_properties(src/gui/CompressDialog.cpp PROPERTIES
+  INCLUDE_DIRECTORIES ${SEVENZIP_DIR}/CPP/7zip/UI/GUI)
+target_include_directories(w32ui PUBLIC src/w32ui src/core src/fm
+  PRIVATE src/w32ui/include ${CMAKE_CURRENT_BINARY_DIR}/generated)
+target_link_libraries(w32ui PUBLIC fmlogic Qt6::Widgets)
+
 # ---- GUI ----
 if(BUILD_GUI)
   add_subdirectory(src)

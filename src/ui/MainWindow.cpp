@@ -166,6 +166,7 @@ void MainWindow::CreateMenus()
 
   // ---- Tools ----
   QMenu *tools = menuBar()->addMenu(M(IDM_TOOLS, "&Tools"));
+  tools->addAction(tr("&Add to archive..."), this, [this]() { _panel->AddToArchive(); });
   tools->addAction(tr("E&xtract..."), this, [this]() { _panel->ExtractArchives(); });
   tools->addAction(tr("&Test"), this, [this]() { _panel->TestArchives(); });
 
@@ -183,6 +184,7 @@ void MainWindow::CreateToolBar()
   tb->addAction(ThemeIcon("go-up"), M(IDM_OPEN_PARENT_FOLDER, "Up"), this, [this]() { _panel->OpenParentFolder(); });
   tb->addAction(ThemeIcon("computer"), M(IDM_OPEN_ROOT_FOLDER, "Root"), this, [this]() { _panel->OpenRootFolder(); });
   tb->addSeparator();
+  tb->addAction(ThemeIcon("archive-insert"), tr("Add"), this, [this]() { _panel->AddToArchive(); });
   tb->addAction(ThemeIcon("archive-extract"), tr("Extract"), this, [this]() { _panel->ExtractArchives(); });
   tb->addAction(ThemeIcon("dialog-ok-apply"), tr("Test"), this, [this]() { _panel->TestArchives(); });
   tb->addAction(ThemeIcon("edit-copy"), tr("Copy"), this, [this]() { _panel->CopyToDialog(false); });
