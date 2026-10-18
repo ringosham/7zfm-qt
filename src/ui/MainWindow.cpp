@@ -44,7 +44,13 @@ static QIcon ThemeIcon(const char *name)
 MainWindow::MainWindow()
 {
   setWindowTitle(QStringLiteral("7-Zip"));
-  setWindowIcon(QIcon::fromTheme(QStringLiteral("package-x-generic")));
+  {
+    QIcon icon;
+    for (const char *f : { ":/icons/16.png", ":/icons/32.png", ":/icons/48.png", ":/icons/7zfm-qt.svg" })
+      icon.addFile(QString::fromLatin1(f));
+    setWindowIcon(icon);
+    QApplication::setWindowIcon(icon);
+  }
   _panel = new Panel(this);
   setCentralWidget(_panel);
   _statusLabel = new QLabel;

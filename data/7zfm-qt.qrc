@@ -1,0 +1,9 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/icons">
+    <file alias="16.png">icons/16.png</file>
+    <file alias="32.png">icons/32.png</file>
+    <file alias="48.png">icons/48.png</file>
+    <file alias="7zfm-qt.svg">icons/7zfm-qt.svg</file>
+  </qresource>
+</RCC>

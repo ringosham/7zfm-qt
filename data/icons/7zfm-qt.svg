@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- after the 7-Zip File Manager icon (FM.ico): "7z" on a black tile -->
+  <rect x="2" y="2" width="44" height="44" rx="4" fill="#ffffff" stroke="#000000" stroke-width="2"/>
+  <rect x="7" y="7" width="34" height="34" rx="2" fill="#000000"/>
+  <path d="M11 13 h13 v4 l-7 18 h-5 l7 -18 h-8 z" fill="#ffffff"/>
+  <path d="M26 21 h11 v3.5 l-6.5 7 h6.5 v3.5 h-11.5 v-3.5 l6.5 -7 h-6 z" fill="#ffffff"/>
+</svg>

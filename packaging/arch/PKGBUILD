@@ -1,0 +1,31 @@
+# Builds 7zfm-qt from this source tree:  cd packaging/arch && makepkg -si
+pkgname=7zfm-qt
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Qt port of the 7-Zip File Manager: opens archives, disk images and partitions in place, including nested ones"
+arch=('x86_64' 'aarch64')
+url="https://www.7-zip.org/"
+license=('LGPL-2.1-or-later' 'LicenseRef-unRAR')
+depends=('qt6-base' 'gcc-libs' 'glibc')
+makedepends=('cmake' 'ninja' 'python')
+checkdepends=('dosfstools' 'mtools' 'e2fsprogs' 'qemu-img' 'util-linux' 'xz')
+options=('!lto')
+
+_srcroot="$startdir/../.."
+
+build() {
+  cmake -S "$_srcroot" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 "$_srcroot/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$_srcroot/external/7zip/DOC/unRarLicense.txt" "$pkgdir/usr/share/licenses/$pkgname/unRarLicense.txt"
+}

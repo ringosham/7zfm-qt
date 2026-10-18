@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=7-Zip File Manager
+GenericName=Archive Manager
+Comment=Open any archive, disk image or partition, including nested ones, without extracting
+Exec=7zfm-qt %f
+Icon=7zfm-qt
+Terminal=false
+StartupWMClass=7zfm-qt
+Categories=Qt;Utility;Archiving;Compression;
+Keywords=archive;7z;zip;rar;tar;iso;vhd;vhdx;vmdk;qcow2;disk image;partition;extract;compress;
+MimeType=application/x-7z-compressed;application/zip;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/x-tar;application/x-compressed-tar;application/gzip;application/x-gzip;application/x-bzip2;application/x-bzip2-compressed-tar;application/x-xz;application/x-xz-compressed-tar;application/zstd;application/x-zstd-compressed-tar;application/x-lzma;application/x-lzma-compressed-tar;application/x-lzip;application/x-compress;application/x-tarz;application/x-cpio;application/x-rpm;application/x-source-rpm;application/vnd.debian.binary-package;application/x-archive;application/vnd.ms-cab-compressed;application/x-msi;application/x-ms-wim;application/x-arj;application/x-lha;application/x-iso9660-image;application/x-cd-image;application/vnd.efi.iso;application/vnd.efi.img;application/x-raw-disk-image;application/x-raw-floppy-disk-image;application/x-vhd-disk;application/x-vhdx-disk;application/x-vmdk-disk;application/x-vdi-disk;application/x-qemu-disk;application/x-apple-diskimage;application/vnd.squashfs;application/vnd.appimage;application/x-iso9660-appimage;application/java-archive;application/x-java-archive;application/vnd.android.package-archive;application/epub+zip;application/x-chm;application/octet-stream;
