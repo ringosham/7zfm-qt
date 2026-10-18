@@ -36,6 +36,7 @@
 #include "RootFolder.h"
 #include "UiHooksQt.h"
 
+#include <QApplication>
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QFileInfo>
@@ -203,12 +204,17 @@ Panel::Panel(QWidget *parent): QWidget(parent)
   {
     v->installEventFilter(this);
     connect(v, &QAbstractItemView::activated, this, [this](const QModelIndex &) { OnActivated(); });
+    connect(v, &QAbstractItemView::clicked, this, [this](const QModelIndex &) {
+      if (_singleClick && !(QApplication::keyboardModifiers() & (Qt::ShiftModifier | Qt::ControlModifier)))
+        OnActivated();
+    });
   }
 
   _stack = new QStackedWidget;
   _stack->addWidget(_list);
   _stack->addWidget(_details);
   _stack->setCurrentWidget(_details);
+  ApplySettings();
 
   auto *top = new QHBoxLayout;
   top->setContentsMargins(0, 0, 0, 0);
@@ -254,6 +260,19 @@ void Panel::SetViewMode(int mode)
     _stack->setCurrentWidget(_list);
   }
   CurrentView()->setFocus();
+}
+
+void Panel::ApplySettings()
+{
+  CFmSettings st;
+  st.Load();
+  // selection stays row-based (the panel works on rows); "Full row select"
+  // only changes how the focus is drawn
+  _details->setAllColumnsShowFocus(st.FullRow);
+  _details->setStyleSheet(st.ShowGrid
+      ? QStringLiteral("QTreeView::item { border-right: 1px solid palette(midlight); border-bottom: 1px solid palette(midlight); }")
+      : QString());
+  _singleClick = st.SingleClick;
 }
 
 void Panel::FocusAddressBar()

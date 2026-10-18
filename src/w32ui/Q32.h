@@ -588,6 +588,88 @@ BOOL DestroyIcon(HICON icon);
 
 void Sleep(DWORD ms);
 
+// ---- property sheets (<prsht.h>): Options dialog pages ----
+typedef struct _PROPSHEETPAGEW
+{
+  DWORD dwSize;
+  DWORD dwFlags;
+  HINSTANCE hInstance;
+  LPCWSTR pszTemplate;
+  HICON hIcon;
+  LPCWSTR pszTitle;
+  DLGPROC pfnDlgProc;
+  LPARAM lParam;
+  void *pfnCallback;
+  UINT *pcRefParent;
+} PROPSHEETPAGEW, PROPSHEETPAGEW_V1;
+typedef struct _PROPSHEETPAGEA
+{
+  DWORD dwSize;
+  DWORD dwFlags;
+  HINSTANCE hInstance;
+  LPCSTR pszTemplate;
+  HICON hIcon;
+  LPCSTR pszTitle;
+  DLGPROC pfnDlgProc;
+  LPARAM lParam;
+  void *pfnCallback;
+  UINT *pcRefParent;
+} PROPSHEETPAGEA, PROPSHEETPAGEA_V1;
+typedef PROPSHEETPAGEA PROPSHEETPAGE;
+typedef const PROPSHEETPAGEW *LPCPROPSHEETPAGEW;
+typedef const PROPSHEETPAGEA *LPCPROPSHEETPAGEA;
+#define PROPSHEETPAGEA_V1_SIZE sizeof(PROPSHEETPAGEA)
+typedef struct _PROPSHEETHEADERW
+{
+  DWORD dwSize;
+  DWORD dwFlags;
+  HWND hwndParent;
+  HINSTANCE hInstance;
+  HICON hIcon;
+  LPCWSTR pszCaption;
+  UINT nPages;
+  UINT nStartPage;
+  LPCPROPSHEETPAGEW ppsp;
+  void *pfnCallback;
+} PROPSHEETHEADERW;
+typedef struct _PROPSHEETHEADERA
+{
+  DWORD dwSize;
+  DWORD dwFlags;
+  HWND hwndParent;
+  HINSTANCE hInstance;
+  HICON hIcon;
+  LPCSTR pszCaption;
+  UINT nPages;
+  UINT nStartPage;
+  LPCPROPSHEETPAGEA ppsp;
+  void *pfnCallback;
+} PROPSHEETHEADERA;
+typedef struct _PSHNOTIFY { NMHDR hdr; LPARAM lParam; } PSHNOTIFY, *LPPSHNOTIFY;
+#define PSP_DEFAULT 0
+#define PSP_USETITLE 0x8
+#define PSP_HASHELP 0x20
+#define PSH_PROPSHEETPAGE 0x8
+#define PSN_FIRST (0U - 200U)
+#define PSN_SETACTIVE (PSN_FIRST - 0)
+#define PSN_KILLACTIVE (PSN_FIRST - 1)
+#define PSN_APPLY (PSN_FIRST - 2)
+#define PSN_RESET (PSN_FIRST - 3)
+#define PSN_HELP (PSN_FIRST - 5)
+#define PSNRET_NOERROR 0
+#define PSNRET_INVALID 1
+#define PSNRET_INVALID_NOCHANGEPAGE 2
+#define PSM_CHANGED (WM_USER + 104)
+#define PSM_UNCHANGED (WM_USER + 109)
+#define PropSheet_Changed(hDlg, hwnd) SendMessageW(hDlg, PSM_CHANGED, (WPARAM)(hwnd), 0)
+#define PropSheet_UnChanged(hDlg, hwnd) SendMessageW(hDlg, PSM_UNCHANGED, (WPARAM)(hwnd), 0)
+INT_PTR PropertySheetW(const PROPSHEETHEADERW *header);
+INT_PTR PropertySheetA(const PROPSHEETHEADERA *header);
+
+// Windows privileges (Windows/MemoryLock.h); no-ops on POSIX (Seams.cpp)
+#define SE_LOCK_MEMORY_NAME "SeLockMemoryPrivilege"
+#define SE_RESTORE_NAME "SeRestorePrivilege"
+
 // GDI fonts (BenchmarkDialog's fixed-pitch console)
 typedef struct tagLOGFONTA
 {

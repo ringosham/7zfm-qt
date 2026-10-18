@@ -134,3 +134,34 @@ void ShowHelpWindow(LPCSTR topicFile)
 {
   QDesktopServices::openUrl(QUrl(QStringLiteral("https://7-zip.opensource.jp/chm/") + QString::fromUtf8(topicFile)));
 }
+
+// Windows/MemoryLock.h: privileges do not exist on POSIX
+#include "Windows/MemoryLock.h"
+namespace NWindows {
+namespace NSecurity {
+bool EnablePrivilege(LPCTSTR, bool) { return false; }
+unsigned Get_LargePages_RiskLevel() { return 0; }
+}}
+
+// FileManager/PanelItemOpen.cpp (EditPage.cpp uses it)
+void SplitCmdLineSmart(const UString &cmd, UString &prg, UString &params);
+void SplitCmdLineSmart(const UString &cmd, UString &prg, UString &params)
+{
+  params.Empty();
+  prg = cmd;
+  prg.Trim();
+  if (prg.Len() >= 2 && prg[0] == L'"')
+  {
+    int pos = prg.Find(L'"', 1);
+    if (pos >= 0)
+    {
+      if ((unsigned)(pos + 1) == prg.Len() || prg[pos + 1] == ' ')
+      {
+        params = prg.Ptr((unsigned)(pos + 1));
+        params.Trim();
+        prg.DeleteFrom((unsigned)pos);
+        prg.DeleteFrontal(1);
+      }
+    }
+  }
+}

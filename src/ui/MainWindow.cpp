@@ -9,6 +9,8 @@
 
 #include "Panel.h"
 #include "CompressCall.h"
+
+bool OptionsDialog();
 #include "QtConv.h"
 
 #include <QAction>
@@ -209,6 +211,11 @@ void MainWindow::CreateMenus()
   tools->addAction(tr("&Add to archive..."), this, [this]() { _panel->AddToArchive(); });
   tools->addAction(tr("E&xtract..."), this, [this]() { _panel->ExtractArchives(); });
   tools->addAction(tr("&Test"), this, [this]() { _panel->TestArchives(); });
+  tools->addSeparator();
+  tools->addAction(M(IDM_OPTIONS, "&Options..."), this, [this]() {
+    if (OptionsDialog())
+      _panel->ApplySettings();
+  });
   tools->addSeparator();
   tools->addAction(M(IDM_BENCHMARK, "&Benchmark"), this, []() { Benchmark(false); });
   tools->addAction(M(IDM_BENCHMARK2, "Benchmark 2"), this, []() { Benchmark(true); });

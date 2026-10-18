@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
           else if (a == QLatin1String("split")) w.GetPanel()->Split();
           else if (a.startsWith(QLatin1String("hash:"))) w.GetPanel()->CalculateCrc(qstrdup(a.mid(5).toLatin1().constData()));
           else if (a == QLatin1String("benchmark")) Benchmark(false);
+          else if (a == QLatin1String("options")) { extern bool OptionsDialog(); OptionsDialog(); }
           else if (a == QLatin1String("combine")) w.GetPanel()->Combine();
           else if (a.startsWith(QLatin1String("rename:"))) w.GetPanel()->RenameFocused(a.mid(7));
           else if (a.startsWith(QLatin1String("drop:"))) w.GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);

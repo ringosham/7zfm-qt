@@ -25,6 +25,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeWidget>
+#include <QTabWidget>
+#include <QDialogButtonBox>
 #include <QVBoxLayout>
 #include <QWindow>
 
@@ -514,6 +516,177 @@ BOOL DestroyWindow(HWND hwnd)
   return TRUE;
 }
 
+// ---------- property sheets ----------
+
+class Q32Sheet : public QDialog
+{
+public:
+  QTabWidget *Tabs = nullptr;
+  QPushButton *Apply = nullptr;
+  std::vector<Q32Dialog *> Pages;
+  std::vector<const PROPSHEETPAGEW *> PageInfo;
+  std::vector<bool> Inited;
+
+  explicit Q32Sheet(QWidget *parent): QDialog(parent) {}
+
+  LRESULT Notify(Q32Dialog *page, UINT code)
+  {
+    PSHNOTIFY n;
+    n.hdr.hwndFrom = H(this);
+    n.hdr.idFrom = 0;
+    n.hdr.code = code;
+    n.lParam = 0;
+    page->MsgResult = 0;
+    page->Call(WM_NOTIFY, 0, (LPARAM)&n);
+    return page->MsgResult;
+  }
+
+  void EnsureInited(int i)
+  {
+    if (i < 0 || Inited[(size_t)i])
+      return;
+    Inited[(size_t)i] = true;
+    Q32Dialog *d = Pages[(size_t)i];
+    // upstream MyProperyPageProcedure stores ((PROPSHEETPAGE *)lParam)->lParam
+    // (the CPropertyPage*) through a 32-bit cast: see SetWindowLongPtrW
+    d->InitParam = PageInfo[(size_t)i]->lParam;
+    d->Call(WM_INITDIALOG, 0, (LPARAM)PageInfo[(size_t)i]);
+    d->Initialized = true;
+  }
+
+  bool ApplyAll()
+  {
+    const int cur = Tabs->currentIndex();
+    if (cur >= 0 && Inited[(size_t)cur] && Notify(Pages[(size_t)cur], PSN_KILLACTIVE) != 0)
+      return false;
+    for (size_t i = 0; i < Pages.size(); i++)
+      if (Inited[i] && Notify(Pages[i], PSN_APPLY) != PSNRET_NOERROR)
+      {
+        Tabs->setCurrentIndex((int)i);
+        return false;
+      }
+    Apply->setEnabled(false);
+    return true;
+  }
+};
+
+static Q32Sheet *SheetOf(QWidget *w)
+{
+  for (; w; w = w->parentWidget())
+    if (auto *s = dynamic_cast<Q32Sheet *>(w))
+      return s;
+  return nullptr;
+}
+
+INT_PTR PropertySheetW(const PROPSHEETHEADERW *header)
+{
+  QWidget *parent = W(header->hwndParent);
+  if (!parent)
+    parent = QApplication::activeWindow();
+  Q32Sheet sheet(parent ? parent->window() : nullptr);
+  sheet.setWindowTitle(FromW(header->pszCaption));
+  sheet.Tabs = new QTabWidget(&sheet);
+  for (UINT i = 0; i < header->nPages; i++)
+  {
+    const PROPSHEETPAGEW &pi = header->ppsp[i];
+    const CDlgTemplate *t = Q32_FindDialogTemplate((int)(ULONG_PTR)pi.pszTemplate);
+    if (!t)
+      continue;
+    Q32Dialog *page = BuildDialog(t, nullptr);
+    page->setWindowFlags(Qt::Widget);
+    page->setMinimumSize(page->size());
+    page->Proc = pi.pfnDlgProc;
+    sheet.Pages.push_back(page);
+    sheet.PageInfo.push_back(&pi);
+    sheet.Inited.push_back(false);
+    QString title = (pi.dwFlags & PSP_USETITLE) && pi.pszTitle ? FromW(pi.pszTitle) : FromW(t->Caption);
+    sheet.Tabs->addTab(page, title.remove(QLatin1Char('&')));
+  }
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply);
+  sheet.Apply = buttons->button(QDialogButtonBox::Apply);
+  sheet.Apply->setEnabled(false);
+  INT_PTR result = 0;
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &sheet, [&]() {
+    if (sheet.ApplyAll())
+    {
+      result = 1;
+      sheet.done(1);
+    }
+  });
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &sheet, [&]() {
+    for (size_t i = 0; i < sheet.Pages.size(); i++)
+      if (sheet.Inited[i])
+        sheet.Notify(sheet.Pages[i], PSN_RESET);
+    sheet.done(0);
+  });
+  QObject::connect(sheet.Apply, &QPushButton::clicked, &sheet, [&]() { if (sheet.ApplyAll()) result = 1; });
+  int prev = -1;
+  QObject::connect(sheet.Tabs, &QTabWidget::currentChanged, &sheet, [&](int i) {
+    if (prev >= 0 && prev < (int)sheet.Pages.size() && sheet.Inited[(size_t)prev])
+      if (sheet.Notify(sheet.Pages[(size_t)prev], PSN_KILLACTIVE) != 0)
+      {
+        QSignalBlocker b(sheet.Tabs);
+        sheet.Tabs->setCurrentIndex(prev);
+        return;
+      }
+    sheet.EnsureInited(i);
+    if (i >= 0)
+      sheet.Notify(sheet.Pages[(size_t)i], PSN_SETACTIVE);
+    prev = i;
+  });
+  auto *lay = new QVBoxLayout(&sheet);
+  lay->addWidget(sheet.Tabs);
+  lay->addWidget(buttons);
+  if (!sheet.Pages.empty())
+  {
+    const int start = (int)qMin<UINT>(header->nStartPage, (UINT)sheet.Pages.size() - 1);
+    sheet.Tabs->setCurrentIndex(start);
+    if (prev < 0)
+    {
+      sheet.EnsureInited(start);
+      sheet.Notify(sheet.Pages[(size_t)start], PSN_SETACTIVE);
+      prev = start;
+    }
+  }
+  sheet.exec();
+  for (Q32Dialog *p : sheet.Pages)
+    p->Call(WM_DESTROY, 0, 0);
+  return result;
+}
+
+INT_PTR PropertySheetA(const PROPSHEETHEADERA *header)
+{
+  // templates are resource IDs; titles are converted
+  std::vector<PROPSHEETPAGEW> pages(header->nPages);
+  std::vector<std::wstring> titles(header->nPages);
+  for (UINT i = 0; i < header->nPages; i++)
+  {
+    const PROPSHEETPAGEA &a = header->ppsp[i];
+    PROPSHEETPAGEW &w = pages[i];
+    memset(&w, 0, sizeof(w));
+    w.dwSize = sizeof(w);
+    w.dwFlags = a.dwFlags;
+    w.pszTemplate = (LPCWSTR)(const void *)a.pszTemplate;
+    w.pfnDlgProc = a.pfnDlgProc;
+    w.lParam = a.lParam;
+    if (a.pszTitle)
+    {
+      titles[i] = QString::fromUtf8(a.pszTitle).toStdWString();
+      w.pszTitle = titles[i].c_str();
+    }
+  }
+  const std::wstring caption = header->pszCaption ? QString::fromUtf8(header->pszCaption).toStdWString() : std::wstring();
+  PROPSHEETHEADERW h;
+  memset(&h, 0, sizeof(h));
+  h.dwSize = sizeof(h);
+  h.hwndParent = header->hwndParent;
+  h.pszCaption = caption.c_str();
+  h.nPages = header->nPages;
+  h.nStartPage = header->nStartPage;
+  h.ppsp = pages.data();
+  return PropertySheetW(&h);
+}
+
 // ---------- dialog items ----------
 
 HWND GetDlgItem(HWND dialog, int id)
@@ -775,6 +948,12 @@ static LRESULT SendMessageImpl(HWND hwnd, UINT msg, WPARAM w, LPARAM l, bool wid
   QWidget *wd = W(hwnd);
   if (!wd)
     return 0;
+  if (msg == PSM_CHANGED || msg == PSM_UNCHANGED)
+  {
+    if (Q32Sheet *sheet = SheetOf(wd))
+      sheet->Apply->setEnabled(msg == PSM_CHANGED);
+    return 0;
+  }
   if (auto *d = dynamic_cast<Q32Dialog *>(wd))
   {
     switch (msg)
@@ -933,7 +1112,16 @@ BOOL ShowWindow(HWND hwnd, int cmdShow)
 BOOL IsWindowVisible(HWND hwnd) { return W(hwnd) && W(hwnd)->isVisible(); }
 BOOL IsWindow(HWND hwnd) { return hwnd != NULL; }
 BOOL IsZoomed(HWND hwnd) { return W(hwnd) && W(hwnd)->isMaximized(); }
-HWND GetParent(HWND hwnd) { return W(hwnd) ? H(W(hwnd)->parentWidget()) : NULL; }
+HWND GetParent(HWND hwnd)
+{
+  QWidget *w = W(hwnd);
+  if (!w)
+    return NULL;
+  if (dynamic_cast<Q32Dialog *>(w))
+    if (Q32Sheet *sheet = SheetOf(w->parentWidget()))
+      return H(sheet);  // a property page's parent is the sheet
+  return H(w->parentWidget());
+}
 HWND SetFocus(HWND hwnd) { HWND old = H(QApplication::focusWidget()); if (W(hwnd)) W(hwnd)->setFocus(); return old; }
 HWND GetFocus() { return H(QApplication::focusWidget()); }
 BOOL SetForegroundWindow(HWND hwnd) { if (W(hwnd)) { W(hwnd)->raise(); W(hwnd)->activateWindow(); } return TRUE; }

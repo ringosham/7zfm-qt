@@ -149,6 +149,7 @@ public:
   void StartDrag();                        // drag selected items out
   void SelectByName(const QString &name);  // focus + select one item
   void SetViewMode(int mode);  // 0 large icons, 1 small icons, 2 list, 3 details
+  void ApplySettings();        // upstream CFmSettings (Options > Settings)
   int ViewMode() const { return _viewMode; }
   void FocusAddressBar();
   void FocusList();
@@ -238,6 +239,7 @@ private:
   UString _typeIDString;
   CListViewInfo _listViewInfo;
   bool _needSaveInfo = false;
+  bool _singleClick = false;
   QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
 
   // files from archives being edited in other applications (upstream
