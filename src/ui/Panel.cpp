@@ -38,7 +38,12 @@
 
 #include <QComboBox>
 #include <QDesktopServices>
+#include <QFileInfo>
+#include <QDateTime>
 #include <QDrag>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QTimer>
 #include <QMimeData>
 #include <QProcess>
 #include <QStandardPaths>
@@ -82,11 +87,51 @@ class CDragView : public TBase
 {
 public:
   Panel *Owner = nullptr;
+  CDragView() { this->setAcceptDrops(true); this->setDropIndicatorShown(false); }
 protected:
   void startDrag(Qt::DropActions) override
   {
     if (Owner)
       Owner->StartDrag();
+  }
+  bool Accepts(const QDropEvent *e) const
+  {
+    // not our own items, and only local files
+    return Owner && Owner->CanModify() && e->source() != this
+        && e->mimeData()->hasUrls() && !e->mimeData()->urls().isEmpty()
+        && e->mimeData()->urls().first().isLocalFile();
+  }
+  void dragEnterEvent(QDragEnterEvent *e) override
+  {
+    if (Accepts(e)) e->acceptProposedAction(); else e->ignore();
+  }
+  void dragMoveEvent(QDragMoveEvent *e) override
+  {
+    if (Accepts(e))
+    {
+      e->setDropAction((e->modifiers() & Qt::ShiftModifier) ? Qt::MoveAction : Qt::CopyAction);
+      e->accept();
+    }
+    else
+      e->ignore();
+  }
+  void dropEvent(QDropEvent *e) override
+  {
+    if (!Accepts(e))
+    {
+      e->ignore();
+      return;
+    }
+    QStringList paths;
+    for (const QUrl &u : e->mimeData()->urls())
+      if (u.isLocalFile())
+        paths << u.toLocalFile();
+    const bool move = (e->modifiers() & Qt::ShiftModifier) != 0;
+    e->setDropAction(move ? Qt::MoveAction : Qt::CopyAction);
+    e->accept();
+    // run after the drag has finished (the operation shows dialogs)
+    QPointer<Panel> owner = Owner;
+    QTimer::singleShot(0, Owner, [owner, paths, move]() { if (owner) owner->DropFiles(paths, move); });
   }
 };
 
@@ -114,6 +159,7 @@ Panel::Panel(QWidget *parent): QWidget(parent)
   auto *details = new CDragView<QTreeView>;
   details->Owner = this;
   _details = details;
+  connect(_model, &FolderModel::RenameRequested, this, &Panel::OnRenameRequested);
   _details->setRootIsDecorated(false);
   _details->setUniformRowHeights(true);
   _details->setAllColumnsShowFocus(true);
@@ -121,6 +167,7 @@ Panel::Panel(QWidget *parent): QWidget(parent)
   _details->setSelectionBehavior(QAbstractItemView::SelectRows);
   _details->setEditTriggers(QAbstractItemView::NoEditTriggers);
   _details->setDragEnabled(true);
+  _details->setEditTriggers(QAbstractItemView::NoEditTriggers);
   _details->setModel(_model);
   _details->header()->setSectionsClickable(true);
   _details->header()->setSortIndicatorShown(true);
@@ -225,6 +272,7 @@ void Panel::SetNewFolder(IFolderFolder *newFolder)
   _folderOperations.Release();
   if (_folder)
     _folder.QueryInterface(IID_IFolderOperations, &_folderOperations);
+  _model->SetEditable(_folderOperations != nullptr);
 }
 
 void Panel::ReleaseFolder()
@@ -1008,7 +1056,25 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
   // upstream watches the started process and offers to write back changes
   // (phase 3); the temp copy is kept until 7zfm-qt exits
   if (StartApplication(fs2us(tempFilePath), editMode, useEditor))
+  {
     _externalTemps.append(tempDirectory);
+    if (_folderOperations)
+    {
+      CExternalEdit e;
+      e.TempDir = tempDirectory;
+      e.FilePath = FsToQ(tempFilePath);
+      e.Index = index;
+      e.FolderOperations = _folderOperations;
+      e.RelPath = relPath;
+      e.FullVirtPath = fullVirtPath;
+      e.UsePassword = usePassword;
+      e.Password = password;
+      const QFileInfo fi(e.FilePath);
+      e.Size = fi.size();
+      e.MTimeMs = fi.lastModified().toMSecsSinceEpoch();
+      WatchExternalEdit(e);
+    }
+  }
 }
 
 void Panel::OpenFolder(unsigned index)
@@ -1555,6 +1621,24 @@ bool Panel::eventFilter(QObject *obj, QEvent *ev)
     case Qt::Key_F5:
       CopyToDialog(false);
       return true;
+    case Qt::Key_F6:
+      CopyToDialog(true);
+      return true;
+    case Qt::Key_F2:
+      RenameFile();
+      return true;
+    case Qt::Key_F7:
+      CreateFolder();
+      return true;
+    case Qt::Key_Delete:
+      DeleteItems(!shift);
+      return true;
+    case Qt::Key_N:
+      if (ctrl) { CreateFile(); return true; }
+      break;
+    case Qt::Key_Z:
+      if (ctrl) { ChangeComment(); return true; }
+      break;
     case Qt::Key_PageDown:
       if (ctrl)
       {

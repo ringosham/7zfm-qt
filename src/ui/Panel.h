@@ -13,6 +13,8 @@
 #include "7zip/UI/FileManager/IFolder.h"
 #include "7zip/UI/FileManager/ViewSettings.h"
 
+#include "FolderOps.h"
+
 #include <QPointer>
 #include <QStringList>
 #include <QVector>
@@ -121,6 +123,16 @@ public:
   void TestArchives();
   void ExtractArchives();                 // toolbar "Extract"
   void AddToArchive();                    // toolbar "Add"
+
+  // ---- operations (PanelOperations.cpp) ----
+  void DeleteItems(bool toTrash);         // Del / Shift+Del
+  void RenameFile();                      // F2
+  void RenameFocused(const QString &newName);
+  void CreateFolder();                    // F7
+  void CreateFile();                      // Ctrl+N
+  void ChangeComment();                   // Ctrl+Z
+  void DropFiles(const QStringList &paths, bool moveMode);
+  bool CanModify() const { return _folderOperations != nullptr; }
   UString GetFsPathPublic() const { return GetFsPath(); }
   bool IsFSFolderPublic() const { return IsFSFolder(); }
 
@@ -222,6 +234,30 @@ private:
   CListViewInfo _listViewInfo;
   bool _needSaveInfo = false;
   QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
+
+  // files from archives being edited in other applications (upstream
+  // CTmpProcessInfo): written back on change, like 7zFM
+  struct CExternalEdit
+  {
+    std::shared_ptr<QTemporaryDir> TempDir;
+    QString FilePath;
+    UInt32 Index;
+    CMyComPtr<IFolderOperations> FolderOperations;
+    UString RelPath;
+    UString FullVirtPath;
+    bool UsePassword;
+    UString Password;
+    qint64 Size;
+    qint64 MTimeMs;
+  };
+  QVector<CExternalEdit> _edits;
+  class QFileSystemWatcher *_watcher = nullptr;
+  bool _askingWriteBack = false;
+  void WatchExternalEdit(const CExternalEdit &e);
+  void OnExternalFileChanged(const QString &path);
+  void OnRenameRequested(UInt32 realIndex, const QString &newName);
+  CFolderOpPassword CurrentPassword() const;
+  void StorePassword(const CFolderOpPassword &pw);
 };
 
 #endif

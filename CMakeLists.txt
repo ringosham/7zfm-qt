@@ -109,7 +109,9 @@ set(UPDATE_GUI_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateCallbackGUI.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/GUI/UpdateCallbackGUI2.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/UpdateCallback100.cpp
-  src/gui/CompressCall2.cpp)
+  ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/ComboDialog.cpp
+  src/gui/CompressCall2.cpp
+  src/gui/FolderOps.cpp)
 set(Q32_INCLUDE "-include;${CMAKE_CURRENT_SOURCE_DIR}/src/w32ui/Q32.h")
 set_source_files_properties(${W32UI_UPSTREAM_SOURCES} PROPERTIES COMPILE_OPTIONS "${Q32_INCLUDE}")
 set_source_files_properties(${UPDATE_GUI_SOURCES} PROPERTIES COMPILE_OPTIONS
@@ -118,7 +120,7 @@ add_library(w32ui OBJECT src/w32ui/Q32.cpp ${W32UI_UPSTREAM_SOURCES} ${UPDATE_GU
 # copies in src/gui keep upstream's relative includes ("../FileManager/...")
 set_source_files_properties(src/gui/CompressDialog.cpp PROPERTIES
   INCLUDE_DIRECTORIES ${SEVENZIP_DIR}/CPP/7zip/UI/GUI)
-target_include_directories(w32ui PUBLIC src/w32ui src/core src/fm
+target_include_directories(w32ui PUBLIC src/w32ui src/core src/fm src/gui
   PRIVATE src/w32ui/include ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(w32ui PUBLIC fmlogic Qt6::Widgets)
 

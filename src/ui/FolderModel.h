@@ -37,6 +37,14 @@ public:
   QVariant data(const QModelIndex &index, int role) const override;
   QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
   Qt::ItemFlags flags(const QModelIndex &index) const override;
+  bool setData(const QModelIndex &index, const QVariant &value, int role) override;
+  void SetEditable(bool on) { _editable = on; }
+
+signals:
+  // in-place rename of the Name column (the panel runs the operation)
+  void RenameRequested(UInt32 realIndex, const QString &newName);
+
+public:
 
   // 7zFM ordering: folders first, then by column; same click toggles.
   void SortByColumn(int column);
@@ -65,6 +73,7 @@ private:
   QVector<CColumn> _columns;
   QVector<UInt32> _rows;
   bool _isDevicesFolder = false;
+  bool _editable = false;
 };
 
 #endif

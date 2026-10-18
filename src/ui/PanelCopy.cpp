@@ -25,6 +25,7 @@
 
 #include "7zip/UI/Common/ArchiveName.h"
 #include "CompressCall.h"
+#include "FsFolder.h"
 #include "CopyDialog.h"
 #include "ExtractCallback.h"
 #include "HashGUI.h"
@@ -38,6 +39,7 @@
 using namespace NWindows;
 using namespace NFile;
 using namespace NDir;
+using namespace NName;
 
 // ---------- CPanelCopyThread (copied) ----------
 
@@ -88,8 +90,11 @@ HRESULT CPanelCopyThread::ProcessVirt()
 
   if (CopyFrom_Paths)
   {
-    // upstream NFsFolder::CopyFileSystemItems(): file-system copy (phase 3)
-    return E_NOTIMPL;
+    result2 = NFsFolder::CopyFileSystemItems(
+        *CopyFrom_Paths,
+        us2fs(options->folder),
+        options->moveMode,
+        (IFolderOperationsExtractCallback *)ExtractCallbackSpec);
   }
   else if (options->testMode)
   {
@@ -359,10 +364,6 @@ static void Reduce_Path_To_RealFileSystemPath(UString &path)
 
 void Panel::CopyToDialog(bool move)
 {
-  if (move && !_parentFolders.isEmpty())
-  {
-    // moving out of an archive deletes items in it (phase 3)
-  }
   if (!_folderOperations)
   {
     MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
@@ -431,9 +432,21 @@ void Panel::CopyToDialog(bool move)
   }
   else
   {
-    // file system to file system copy / move: phase 3
-    MessageBox_Error(UString(L"Copying between file system folders is not implemented yet."));
-    return;
+    // file system to file system (upstream: destIsFsPath)
+    if (CompareFileNames(destPath, GetFsPath()) == 0)
+    {
+      MessageBox_Error(UString(L"Cannot copy files onto itself"));
+      return;
+    }
+    if (indices.Size() != 1 || destPath.IsEmpty() || IS_PATH_SEPAR(destPath.Back()))
+    {
+      NName::NormalizeDirPathPrefix(destPath);
+      if (!CreateComplexDir(us2fs(destPath)))
+      {
+        MessageBox_Error(destPath + L"\n" + HResultToMessage(GetLastError_noZero_HRESULT()));
+        return;
+      }
+    }
   }
 
   AddUniqueStringToHeadOfList(copyFolders, destPath);

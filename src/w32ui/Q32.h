@@ -344,6 +344,8 @@ typedef struct tagHELPINFO { UINT cbSize; int iContextType; int iCtrlId; HWND hI
 
 #define STM_SETICON 0x0170
 #define STM_SETIMAGE 0x0172
+#define STM_GETICON 0x0171
+#define STM_GETIMAGE 0x0173
 
 #define PBM_SETRANGE (WM_USER + 1)
 #define PBM_SETPOS (WM_USER + 2)

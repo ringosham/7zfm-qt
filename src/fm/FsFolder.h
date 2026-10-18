@@ -40,13 +40,15 @@ class CFsFolder Z7_final:
   public IFolderGetItemName,
   public IFolderClone,
   public IFolderWasChanged,
+  public IFolderOperations,
   public CMyUnknownImp
 {
-  Z7_COM_UNKNOWN_IMP_4(IFolderFolder, IFolderGetItemName, IFolderClone, IFolderWasChanged)
+  Z7_COM_UNKNOWN_IMP_5(IFolderFolder, IFolderGetItemName, IFolderClone, IFolderWasChanged, IFolderOperations)
   Z7_IFACE_COM7_IMP(IFolderFolder)
   Z7_IFACE_COM7_IMP(IFolderGetItemName)
   Z7_IFACE_COM7_IMP(IFolderClone)
   Z7_IFACE_COM7_IMP(IFolderWasChanged)
+  Z7_IFACE_COM7_IMP(IFolderOperations)
 
   FString _path;          // with trailing '/'
   CObjectVector<CItem> _items;
@@ -59,6 +61,14 @@ public:
 };
 
 bool FillItem(int dirFd, const char *name, CItem &item);
+
+// upstream NFsFolder::CopyFileSystemItems (FSFolderCopy.cpp): copy or move
+// file-system items (full paths) into destDir, asking via callback->AskWrite.
+HRESULT CopyFileSystemItems(
+    const UStringVector &itemsPaths,
+    const FString &destDirPrefix,
+    bool moveMode,
+    IFolderOperationsExtractCallback *callback);
 
 }
 

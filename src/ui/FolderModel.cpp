@@ -220,7 +220,21 @@ Qt::ItemFlags FolderModel::flags(const QModelIndex &index) const
 {
   if (!index.isValid())
     return Qt::NoItemFlags;
-  return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemNeverHasChildren | Qt::ItemIsDragEnabled;
+  Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemNeverHasChildren | Qt::ItemIsDragEnabled;
+  if (_editable && index.column() == 0)
+    f |= Qt::ItemIsEditable;
+  return f;
+}
+
+bool FolderModel::setData(const QModelIndex &index, const QVariant &value, int role)
+{
+  if (role != Qt::EditRole || !index.isValid() || index.column() != 0)
+    return false;
+  const QString name = value.toString();
+  if (name.isEmpty() || name == ToQ(_sort.GetItemName(_rows[index.row()])))
+    return false;
+  emit RenameRequested(_rows[index.row()], name);
+  return false;  // the panel reloads the folder after the rename
 }
 
 QVariant FolderModel::data(const QModelIndex &index, int role) const
@@ -231,6 +245,10 @@ QVariant FolderModel::data(const QModelIndex &index, int role) const
   const CColumn &col = _columns[index.column()];
   switch (role)
   {
+    case Qt::EditRole:
+      if (col.ID == kpidName)
+        return ToQ(_sort.GetItemName(real));
+      return QVariant();
     case Qt::DisplayRole:
     case Qt::ToolTipRole:
     {

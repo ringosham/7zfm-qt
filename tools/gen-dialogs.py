@@ -130,9 +130,15 @@ for d in dirs:
             if did in dialogs:
                 continue
             rest = text[m.end():]
-            begin = re.search(r'^\s*BEGIN\s*$', rest, re.M)
-            end = re.search(r'^\s*END\s*$', rest, re.M)
-            if not begin or not end:
+            # a body is BEGIN ... END or { ... } (both styles occur upstream)
+            begin = re.search(r'^\s*(?:BEGIN|\{)\s*$', rest, re.M)
+            if not begin:
+                continue
+            end = re.compile(r'^\s*(?:END|\})\s*$', re.M).search(rest, begin.end())
+            if not end:
+                continue
+            nxt = HEADER.search(rest)
+            if nxt and nxt.start() < begin.start():
                 continue
             header = m.group(2) + '\n' + rest[:begin.start()]
             body = rest[begin.end():end.start()]
