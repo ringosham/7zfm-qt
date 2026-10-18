@@ -119,23 +119,19 @@ void MainWindow::CreateMenus()
   a->setShortcutContext(Qt::WidgetShortcut);
   a = file->addAction(M(IDM_FILE_VIEW, "&View"), this, [this]() { _panel->EditItem(false); });
   a->setShortcut(QKeySequence(Qt::Key_F3));
-  a->setShortcutContext(Qt::WidgetShortcut);
   a = file->addAction(M(IDM_FILE_EDIT, "&Edit"), this, [this]() { _panel->EditItem(true); });
   a->setShortcut(QKeySequence(Qt::Key_F4));
-  a->setShortcutContext(Qt::WidgetShortcut);
   file->addSeparator();
   a = file->addAction(M(IDM_RENAME, "Rena&me"), this, [this]() { _panel->RenameFile(); });
   a->setShortcut(QKeySequence(Qt::Key_F2));
-  a->setShortcutContext(Qt::WidgetShortcut);
   a = file->addAction(M(IDM_COPY_TO, "&Copy To..."), this, [this]() { _panel->CopyToDialog(false); });
   a->setShortcut(QKeySequence(Qt::Key_F5));
-  a->setShortcutContext(Qt::WidgetShortcut);
   a = file->addAction(M(IDM_MOVE_TO, "&Move To..."), this, [this]() { _panel->CopyToDialog(true); });
   a->setShortcut(QKeySequence(Qt::Key_F6));
-  a->setShortcutContext(Qt::WidgetShortcut);
-  a = file->addAction(M(IDM_DELETE, "&Delete"), this, [this]() { _panel->DeleteItems(true); });
-  a->setShortcut(QKeySequence(Qt::Key_Delete));
-  a->setShortcutContext(Qt::WidgetShortcut);
+  a = file->addAction(M(IDM_DELETE, "&Delete"), this, [this]() {
+    _panel->DeleteItems(!(QApplication::keyboardModifiers() & Qt::ShiftModifier));
+  });
+  a->setShortcuts({ QKeySequence(Qt::Key_Delete), QKeySequence(Qt::SHIFT | Qt::Key_Delete) });
   file->addSeparator();
   file->addAction(M(IDM_LINK, "&Link..."), this, [this]() { _panel->Link(); });
   file->addAction(M(IDM_SPLIT, "&Split file..."), this, [this]() { _panel->Split(); });
@@ -143,7 +139,6 @@ void MainWindow::CreateMenus()
   file->addSeparator();
   a = file->addAction(M(IDM_COMMENT, "Comme&nt..."), this, [this]() { _panel->ChangeComment(); });
   a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Z));
-  a->setShortcutContext(Qt::WidgetShortcut);
   {
     QMenu *crc = file->addMenu(QStringLiteral("CRC"));
     static const char *const kMethods[] = { "CRC32", "CRC64", "XXH64", "MD5", "SHA1", "SHA256",
@@ -159,10 +154,8 @@ void MainWindow::CreateMenus()
   file->addSeparator();
   a = file->addAction(M(IDM_CREATE_FOLDER, "Create Folder"), this, [this]() { _panel->CreateFolder(); });
   a->setShortcut(QKeySequence(Qt::Key_F7));
-  a->setShortcutContext(Qt::WidgetShortcut);
   a = file->addAction(M(IDM_CREATE_FILE, "Create File"), this, [this]() { _panel->CreateFile(); });
   a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_N));
-  a->setShortcutContext(Qt::WidgetShortcut);
   file->addSeparator();
   a = file->addAction(M(IDM_PROPERTIES, "P&roperties"), this, [this]() { _panel->Properties(); });
   a->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Return));
@@ -191,6 +184,9 @@ void MainWindow::CreateMenus()
     _viewActions[i]->setShortcut(QKeySequence(Qt::CTRL | (Qt::Key_1 + i)));
     group->addAction(_viewActions[i]);
   }
+  view->addSeparator();
+  a = view->addAction(M(IDM_VIEW_FLAT_VIEW, "&Flat View"), this, [this](bool on) { _panel->SetFlatMode(on); });
+  a->setCheckable(true);
   view->addSeparator();
   a = view->addAction(M(IDM_OPEN_ROOT_FOLDER, "Open Root Folder"), this, [this]() { _panel->OpenRootFolder(); });
   a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backslash));

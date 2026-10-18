@@ -76,6 +76,12 @@ check sh -c "'$SEVENZZ' e -so '$WORK/wb/content.7z' content/hello.txt 2>/dev/nul
 DESC="GUI: archives modified by the GUI pass 7zz t"
 check sh -c "'$SEVENZZ' t '$WORK/add/content.7z' >/dev/null && '$SEVENZZ' t '$WORK/wb/content.7z' >/dev/null"
 
+DESC="GUI: encrypted 7z (encrypted headers): password prompt, then copy-out reuses it"
+mkdir -p "$WORK/enc"
+"$SEVENZZ" a -pSECRET -mhe=on "$WORK/enc/enc.7z" "$FX/content" >/dev/null
+check run "$WORK/enc/enc.7z" --keys "@wait,@type:SECRET,Return,@wait,@wait,@select:content,@action:copy,@wait,Return,@wait,@wait,@wait" --screenshot "$WORK/s14.png"
+check cmp -s "$WORK/enc/content/docs/random.bin" "$FX/content/docs/random.bin"
+
 DESC="GUI: temp folders are removed on exit"
 check sh -c "[ -z \"\$(find '$WORK/cache' -mindepth 2 -maxdepth 3 -name '7zO*' 2>/dev/null)\" ]"
 exit $fail

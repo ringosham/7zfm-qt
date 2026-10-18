@@ -275,6 +275,23 @@ void Panel::ApplySettings()
   _singleClick = st.SingleClick;
 }
 
+// upstream CPanel::ChangeFlatMode: items of all subfolders in one list
+void Panel::SetFlatMode(bool flat)
+{
+  // like upstream: save the selection before the item list changes
+  CSelectedState state;
+  SaveSelectedState(state);
+  _flatMode = flat;
+  if (_folder)
+  {
+    CMyComPtr<IFolderSetFlatMode> setFlat;
+    _folder.QueryInterface(IID_IFolderSetFlatMode, &setFlat);
+    if (setFlat)
+      setFlat->SetFlatMode(BoolToInt(flat));
+  }
+  RefreshListCtrl(state);
+}
+
 void Panel::FocusAddressBar()
 {
   _address->setFocus();
@@ -290,7 +307,13 @@ void Panel::SetNewFolder(IFolderFolder *newFolder)
   _folder = newFolder;
   _folderOperations.Release();
   if (_folder)
+  {
     _folder.QueryInterface(IID_IFolderOperations, &_folderOperations);
+    CMyComPtr<IFolderSetFlatMode> setFlat;
+    _folder.QueryInterface(IID_IFolderSetFlatMode, &setFlat);
+    if (setFlat)
+      setFlat->SetFlatMode(BoolToInt(_flatMode));
+  }
   _model->SetEditable(_folderOperations != nullptr);
 }
 
@@ -1368,7 +1391,13 @@ void Panel::InitColumns()
   }
   for (int c = 0; c < cols.size(); c++)
     if (!placed[c])
-      order.append(c);
+    {
+      // a Path column (flat view) not in the saved layout goes after Name
+      if (cols[c].ID == kpidPrefix && !order.isEmpty())
+        order.insert(1, c);
+      else
+        order.append(c);
+    }
 
   for (int vis = 0; vis < order.size(); vis++)
   {
@@ -1632,33 +1661,7 @@ bool Panel::eventFilter(QObject *obj, QEvent *ev)
     case Qt::Key_Backspace:
       OpenParentFolder();
       return true;
-    case Qt::Key_F3:
-      EditItem(false);
-      return true;
-    case Qt::Key_F4:
-      EditItem(true);
-      return true;
-    case Qt::Key_F5:
-      CopyToDialog(false);
-      return true;
-    case Qt::Key_F6:
-      CopyToDialog(true);
-      return true;
-    case Qt::Key_F2:
-      RenameFile();
-      return true;
-    case Qt::Key_F7:
-      CreateFolder();
-      return true;
-    case Qt::Key_Delete:
-      DeleteItems(!shift);
-      return true;
-    case Qt::Key_N:
-      if (ctrl) { CreateFile(); return true; }
-      break;
-    case Qt::Key_Z:
-      if (ctrl) { ChangeComment(); return true; }
-      break;
+    // F2..F7, Del, Ctrl+N, Ctrl+Z are window-wide menu shortcuts (MainWindow)
     case Qt::Key_PageDown:
       if (ctrl)
       {

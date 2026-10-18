@@ -255,11 +255,18 @@ void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &ti
     QTimer showTimer;
     showTimer.setSingleShot(true);
     QObject::connect(&showTimer, &QTimer::timeout, &dlg, [&]() {
-      if (!thread->isFinished())
+      if (thread->isFinished())
+        return;
+      // a prompt from the worker (password, overwrite...) is open: don't
+      // cover it with the progress window; try again later
+      QWidget *modal = QApplication::activeModalWidget();
+      if (modal && modal != &dlg && !dlg.isVisible())
       {
-        QApplication::restoreOverrideCursor();
-        dlg.show();
+        showTimer.start(200);
+        return;
       }
+      QApplication::restoreOverrideCursor();
+      dlg.show();
     });
     thread->start();
     showTimer.start(waitMode ? 500 : 0);

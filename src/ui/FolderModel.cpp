@@ -48,8 +48,9 @@ void FolderModel::LoadColumns()
     VARTYPE varType;
     if (_folder->GetPropertyInfo(i, &name, &propID, &varType) != S_OK)
       continue;
-    // upstream CPanel::InitColumns() never shows these as columns
-    if (propID == kpidIsDir || propID == kpidPrefix)
+    // upstream CPanel::InitColumns() never shows kpidIsDir; kpidPrefix
+    // (the Path column) only exists in flat mode
+    if (propID == kpidIsDir)
       continue;
     CColumn c;
     c.ID = propID;
