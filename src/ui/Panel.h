@@ -100,6 +100,7 @@ public:
   // ---- navigation (PanelFolderChange.cpp) ----
   HRESULT BindToPath(const UString &fullPath, const UString &arcFormat, COpenResult &openRes);
   HRESULT BindToPathAndRefresh(const UString &path);
+  HRESULT BindToStartPath(const UString &path);
   void OpenParentFolder();
   void OpenRootFolder();
   void CloseOpenFolders();

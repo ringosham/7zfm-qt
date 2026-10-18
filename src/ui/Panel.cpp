@@ -624,6 +624,37 @@ HRESULT Panel::BindToPathAndRefresh(const UString &path)
   return res;
 }
 
+// FM.cpp WM_CREATE: an archive named on the command line that cannot be
+// opened (wrong password, not an archive) is reported. Upstream then quits;
+// here the panel stays on the archive's folder.
+HRESULT Panel::BindToStartPath(const UString &path)
+{
+  const bool needOpenArc = NFind::DoesFileExist_FollowLink(us2fs(path));
+  COpenResult openRes;
+  const HRESULT res = BindToPath(path, UString(), openRes);
+  if (res != E_ABORT && ((needOpenArc && !openRes.ArchiveIsOpened) || res != S_OK))
+  {
+    UString m ("Error");
+    if (res == S_FALSE || res == S_OK)
+      m = MyFormatNew(openRes.Encrypted ?
+            IDS_CANT_OPEN_ENCRYPTED_ARCHIVE :
+            IDS_CANT_OPEN_ARCHIVE,
+          path);
+    else
+      m = HResultToMessage(res);
+    if (!openRes.ErrorMessage.IsEmpty())
+    {
+      m.Add_LF();
+      m += openRes.ErrorMessage;
+    }
+    MessageBox_Error(m);
+  }
+  if (!_folder)
+    SetToRootFolder();
+  RefreshListCtrl();
+  return res;
+}
+
 void Panel::OpenParentFolder()
 {
   LoadFullPath();

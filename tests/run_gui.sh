@@ -82,6 +82,58 @@ mkdir -p "$WORK/enc"
 check run "$WORK/enc/enc.7z" --keys "@wait,@type:SECRET,Return,@wait,@wait,@select:content,@action:copy,@wait,Return,@wait,@wait,@wait" --screenshot "$WORK/s14.png"
 check cmp -s "$WORK/enc/content/docs/random.bin" "$FX/content/docs/random.bin"
 
+# ---- RAR (test4.rar is a generated store-only RAR4; the rest need 'rar') ----
+R="$WORK/rar"
+same_tree() {  # <dir> <archive> [password]: dir matches content/ and 7zz x
+  rm -rf "$R/ref" && "$SEVENZZ" x -y -p"${3:-}" -o"$R/ref" "$2" >/dev/null &&
+    diff -r "$FX/content" "$1" >/dev/null && diff -r "$R/ref" "$1" >/dev/null
+}
+same_docs() { diff -r "$FX/content/docs" "$1" >/dev/null; }
+rars=test4
+[ -f "$FX/test5.rar" ] && rars="test4 test5 solid"
+for a in $rars; do
+  DESC="GUI: Extract dialog extracts $a.rar"
+  mkdir -p "$R/$a" && cp "$FX/$a.rar" "$R/$a/"
+  check run "$R/$a/" --select $a.rar --action extract --keys "Return" --screenshot "$WORK/r-$a.png"
+  check same_tree "$R/$a/$a" "$FX/$a.rar"
+done
+
+if [ -f "$FX/test5.rar" ]; then
+  DESC="GUI: Extract dialog extracts a multi-volume RAR from .part1.rar"
+  mkdir -p "$R/vol" && cp "$FX"/vol.part*.rar "$R/vol/"
+  check run "$R/vol/" --select vol.part1.rar --action extract --keys "Return" --screenshot "$WORK/r-vol1.png"
+  check same_tree "$R/vol/vol" "$FX/vol.part1.rar"
+
+  DESC="GUI: Ctrl+PgDn into vol.part1.rar, F5 copies a file spanning volumes"
+  check run "$R/vol/" --select vol.part1.rar --keys "Ctrl+PgDown,@select:docs,F5,Return,@wait,@wait" --screenshot "$WORK/r-vol2.png"
+  check same_docs "$R/vol/docs"
+
+  DESC="GUI: encrypted RAR headers ask for a password on open"
+  mkdir -p "$R/enc" && cp "$FX/enc.rar" "$R/enc/"
+  check run "$R/enc/enc.rar" --keys "@wait" --screenshot "$WORK/r-enc1.png"
+  check grep -qi "password" "$WORK/r-enc1.png.txt"
+
+  DESC="GUI: encrypted RAR headers, wrong password: 'Wrong password?' error"
+  check run "$R/enc/enc.rar" --keys "@wait,@type:wrong,Return,@wait" --screenshot "$WORK/r-enc2.png"
+  check grep -q "Cannot open encrypted archive.*Wrong password" "$WORK/r-enc2.png.txt"
+
+  DESC="GUI: encrypted RAR headers, right password: copy-out reuses it"
+  check run "$R/enc/enc.rar" --keys "@wait,@type:secret,Return,@wait,@wait,@select:docs,@action:copy,@wait,Return,@wait,@wait,@wait" --screenshot "$WORK/r-enc3.png"
+  check same_docs "$R/enc/docs"
+
+  DESC="GUI: encrypted RAR data: password asked on copy-out"
+  mkdir -p "$R/encdata" && cp "$FX/encdata.rar" "$R/encdata/"
+  check run "$R/encdata/encdata.rar" --keys "@wait,@select:docs,F5,Return,@wait,@wait,@type:secret,Return,@wait,@wait,@wait" --screenshot "$WORK/r-encdata.png"
+  check same_docs "$R/encdata/docs"
+
+  DESC="GUI: Ctrl+PgDn RAR -> FAT image (extracted, no in-place stream), F5 copy-out"
+  mkdir -p "$R/nested" && cp "$FX/nested.rar" "$R/nested/"
+  check run "$R/nested/" --select nested.rar --keys "Ctrl+PgDown,Ctrl+PgDown,F5,Return,@wait" --screenshot "$WORK/r-nested.png"
+  check cmp -s "$R/nested/FATFILE.TXT" "$FX/fatcontent/FATFILE.TXT"
+else
+  echo "SKIP: GUI RAR5 checks ('rar' not installed)"
+fi
+
 DESC="GUI: temp folders are removed on exit"
 check sh -c "[ -z \"\$(find '$WORK/cache' -mindepth 2 -maxdepth 3 -name '7zO*' 2>/dev/null)\" ]"
 exit $fail

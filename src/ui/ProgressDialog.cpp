@@ -278,7 +278,12 @@ void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &ti
     delete thread;
     if (!dlg.isVisible())
       QApplication::restoreOverrideCursor();
+    // Windows activates the owner when the progress window goes away; Qt
+    // leaves no active window (keys and shortcuts are lost), so do it here
+    const bool wasActive = dlg.isActiveWindow();
     dlg.hide();
+    if (wasActive && dlg.parentWidget())
+      dlg.parentWidget()->activateWindow();
   }
 
   QStringList messages;

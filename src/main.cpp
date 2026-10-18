@@ -15,7 +15,9 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QLabel>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QMessageBox>
@@ -76,7 +78,7 @@ int main(int argc, char *argv[])
   // open the start path from the event loop: the window appears first, and
   // a slow open (or its password prompt) runs with the usual progress UI
   QTimer::singleShot(0, &w, [&w, start]() {
-    w.GetPanel()->BindToPathAndRefresh(ToU(start));
+    w.GetPanel()->BindToStartPath(ToU(start));
     w.GetPanel()->FocusList();
   });
 
@@ -145,6 +147,15 @@ int main(int argc, char *argv[])
       if (!top)
         top = &w;
       top->grab().save(screenshot);
+      // and the text of an open dialog, for tests to check messages
+      if (top != &w)
+      {
+        QFile f(screenshot + QStringLiteral(".txt"));
+        if (f.open(QIODevice::WriteOnly))
+          for (const QLabel *l : top->findChildren<QLabel *>())
+            if (l->isVisible() && !l->text().isEmpty())
+              f.write((l->text() + QLatin1Char('\n')).toUtf8());
+      }
       QApplication::exit(0);
     };
     QTimer::singleShot(300, qApp, [step]() { (*step)(0); });

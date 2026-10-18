@@ -3,12 +3,15 @@
 # filesystems are written straight into the image at partition offsets.
 set -eu
 OUT=${1:-build/fixtures}
+SRCDIR=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"
 cd "$OUT"
 [ -f .done ] && exit 0
 rm -rf content && mkdir -p content/docs content/deep/a/b/c
 printf 'hello from the ext4 partition\n' > content/hello.txt
 printf 'nested deep file\n' > content/deep/a/b/c/leaf.txt
+# compressible text, so the RAR/7z decoders do real LZ work
+seq 1 40000 | sed 's/$/ lorem ipsum dolor sit amet/' > content/docs/lorem.txt
 head -c 3000000 /dev/urandom > content/docs/random.bin
 mkdir -p fatcontent && printf 'hello from FAT32\n' > fatcontent/FATFILE.TXT
 
@@ -42,11 +45,16 @@ mkfs.vfat small-fat.img >/dev/null
 mcopy -i small-fat.img fatcontent/FATFILE.TXT ::/
 tar -cJf small-fat.tar.xz small-fat.img
 
+# RAR4: rar 7.x cannot write it any more, so a store-only one is generated.
+python3 -I "$SRCDIR/make_rar4.py" test4.rar content
 if command -v rar >/dev/null 2>&1; then
-  (cd content && rar a -inul -ma4 ../test4.rar . && rar a -inul -ma5 ../test5.rar . \
-     && rar a -inul -ma5 -s ../solid.rar . && rar a -inul -ma5 -v1m ../vol.rar . \
-     && rar a -inul -ma5 -hpsecret ../enc.rar .)
+  rm -f test5.rar solid.rar vol.part*.rar enc.rar encdata.rar
+  (cd content && rar a -inul -ma5 -r ../test5.rar . && rar a -inul -ma5 -r -s ../solid.rar . \
+     && rar a -inul -ma5 -r -v1m ../vol.rar . \
+     && rar a -inul -ma5 -r -hpsecret ../enc.rar . && rar a -inul -ma5 -r -psecret ../encdata.rar .)
+  # a FAT image inside RAR: no in-place stream, so Open Inside extracts it
+  rm -f nested.rar && rar a -inul -ma5 nested.rar small-fat.img
 else
-  echo "warning: 'rar' not installed (AUR: rar); RAR fixtures skipped" >&2
+  echo "warning: 'rar' not installed (AUR: rar); RAR5 fixtures skipped" >&2
 fi
 touch .done

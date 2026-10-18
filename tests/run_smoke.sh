@@ -35,10 +35,61 @@ check sh -c "'$S' ls vhdx-in-zip.zip disk.vhdx >/dev/null 2>&1; [ \$? -eq 3 ]"
 DESC="xz -> tar -> FAT chain opens in place"
 check sh -c "'$S' cat small-fat.tar.xz small-fat.tar/small-fat.img/FATFILE.TXT | cmp -s - fatcontent/FATFILE.TXT"
 
+# RAR: listing and full extraction through the Agent, compared with the
+# source tree and with upstream 7zz (built from the same sources).
+# test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.
+SEVENZZ=$(dirname "$S")/7zz
+T=$(mktemp -d)
+trap 'rm -rf "$T"' EXIT
+rar_x() {  # rar_x <archive> [password]: Agent and 7zz extraction match content/
+  rm -rf "$T/a" "$T/z"
+  CORE_SMOKE_PASSWORD=${2:-} "$S" x "$1" "$T/a" >/dev/null || return 1
+  "$SEVENZZ" x -y -p"${2:-}" -o"$T/z" "$1" >/dev/null || return 1
+  diff -r content "$T/a" >/dev/null && diff -r "$T/z" "$T/a" >/dev/null
+}
+rar_ls() {
+  "$S" ls "$@" > "$T/ls" && grep -qx 'F	30	hello.txt' "$T/ls" && grep -q '^D.*	docs$' "$T/ls"
+}
+rar_type() { "$SEVENZZ" l -slt "$1" | grep -qx "Type = $2"; }
+
+DESC="RAR4 (generated, stored) is opened by the Rar handler"
+check rar_type test4.rar Rar
+DESC="RAR4 listing"
+check rar_ls test4.rar
+DESC="RAR4 extraction"
+check rar_x test4.rar
+
 if [ -f test5.rar ]; then
-  DESC="RAR5 listing"
-  check sh -c "'$S' ls test5.rar | grep -q hello.txt"
+  DESC="RAR5 is opened by the Rar5 handler"
+  check rar_type test5.rar Rar5
+  for a in test5.rar solid.rar vol.part1.rar; do
+    DESC="$a listing"
+    check rar_ls $a
+    DESC="$a extraction"
+    check rar_x $a
+  done
+  DESC="solid.rar is solid"
+  check sh -c "'$SEVENZZ' l -slt solid.rar | grep -qx 'Solid = +'"
+  DESC="vol.part1.rar opens all 3 volumes"
+  check sh -c "'$SEVENZZ' l vol.part1.rar | grep -qx 'Volumes = 3' && '$S' ls vol.part1.rar docs | grep -qx 'F	3000000	random.bin'"
+
+  DESC="encrypted headers: no password -> open fails"
+  check sh -c "! '$S' ls enc.rar >/dev/null 2>&1"
+  DESC="encrypted headers: wrong password -> open fails"
+  check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' ls enc.rar >/dev/null 2>&1"
+  DESC="encrypted headers: listing with password"
+  check sh -c "CORE_SMOKE_PASSWORD=secret '$S' ls enc.rar | grep -qx 'F	30	hello.txt'"
+  DESC="encrypted headers: extraction with password"
+  check rar_x enc.rar secret
+  DESC="encrypted data: listed without password"
+  check rar_ls encdata.rar
+  DESC="encrypted data: extraction without password fails"
+  check sh -c "rm -rf '$T/n'; ! '$S' x encdata.rar '$T/n' >/dev/null 2>&1"
+  DESC="encrypted data: wrong password reports errors"
+  check sh -c "rm -rf '$T/n'; ! CORE_SMOKE_PASSWORD=wrong '$S' x encdata.rar '$T/n' >/dev/null 2>&1"
+  DESC="encrypted data: extraction with password"
+  check rar_x encdata.rar secret
 else
-  echo "SKIP: RAR fixtures ('rar' not installed)"
+  echo "SKIP: RAR5 fixtures ('rar' not installed)"
 fi
 exit $fail
