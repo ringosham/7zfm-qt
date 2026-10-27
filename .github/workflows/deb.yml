@@ -1,0 +1,53 @@
+name: Debian packages
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  deb:
+    name: ${{ matrix.distro.name }} ${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro:
+          - { image: 'debian:trixie', name: debian13 }
+          - { image: 'ubuntu:26.04', name: ubuntu26.04 }
+        arch:
+          - { runner: ubuntu-24.04, name: amd64 }
+          - { runner: ubuntu-24.04-arm, name: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0  # the version comes from the tags and the commit date
+      - name: Build and test
+        run: packaging/debian/build.sh --docker ${{ matrix.distro.image }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 7zfm-qt-${{ matrix.distro.name }}-${{ matrix.arch.name }}
+          path: dist/*.deb
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: deb
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" --generate-notes \
+            $(find dist -name '*.deb' ! -name '*-dbgsym_*')

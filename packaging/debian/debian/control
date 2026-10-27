@@ -1,0 +1,35 @@
+Source: 7zfm-qt
+Section: utils
+Priority: optional
+Maintainer: Ringo Sham <ringosham@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.21),
+               ninja-build,
+               python3,
+               qt6-base-dev (>= 6.5),
+               dbus-daemon <!nocheck>,
+               dosfstools <!nocheck>,
+               e2fsprogs <!nocheck>,
+               fdisk <!nocheck>,
+               mtools <!nocheck>,
+               qemu-utils <!nocheck>,
+               qt6-qpa-plugins <!nocheck>,
+               xz-utils <!nocheck>,
+               zip <!nocheck>,
+Standards-Version: 4.7.0
+Homepage: https://www.7-zip.org/
+Rules-Requires-Root: no
+
+Package: 7zfm-qt
+Architecture: any
+Depends: qt6-qpa-plugins, ${misc:Depends}, ${shlibs:Depends}
+Recommends: qt6-wayland, xdg-utils
+Description: Qt port of the 7-Zip File Manager
+ 7zfm-qt is the Windows 7-Zip File Manager (7zFM) on Qt 6, built on the
+ unmodified 7-Zip engine. It opens archives, disk images and partitions by
+ signature rather than by extension, and opens nested items in place: a
+ partition inside a VHDX, the filesystem inside that partition, or a tar
+ inside an xz, without extracting them first.
+ .
+ It reads every format 7-Zip reads, including RAR, and can create, update,
+ test and extract archives, with one or two panels.

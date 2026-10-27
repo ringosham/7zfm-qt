@@ -61,6 +61,8 @@ ctest --test-dir build --output-on-failure
 sudo cmake --install build        # or: cd packaging/arch && makepkg -si
 ```
 
+Debian 13 and Ubuntu 25.04 or later (Qt 6.5 is the minimum): `packaging/debian/build.sh` builds and tests a `.deb` into `dist/`. With `--docker debian:trixie` (or `ubuntu:26.04`) it builds in a fresh container instead, so any distribution with Docker works. GitHub Actions builds both for amd64 and arm64 on every push, and attaches them to a release for each `v*` tag.
+
 Options:
 - `-DSANITIZE=ON` for ASan and UBSan.
 - `-DBUILD_GUI=OFF` for the engine and tests only.
