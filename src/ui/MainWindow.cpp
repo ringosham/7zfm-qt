@@ -2,6 +2,7 @@
 
 #include "MainWindow.h"
 
+#include "C/7zVersion.h"
 #include "Common/Common.h"
 #include "7zip/UI/FileManager/LangUtils.h"
 #include "7zip/UI/FileManager/resource.h"
@@ -429,6 +430,7 @@ void MainWindow::About()
   QMessageBox::about(this, tr("About 7-Zip"),
       QStringLiteral("<b>7zfm-qt</b> %1<br><br>"
       "A Qt port of the 7-Zip File Manager.<br>"
-      "7-Zip engine 26.04, Copyright (c) 1999-2026 Igor Pavlov.<br>"
-      "GNU LGPL (with unRAR license restriction).").arg(QStringLiteral(Z7QT_VERSION)));
+      "7-Zip engine %2, Copyright (c) 1999-2026 Igor Pavlov.<br>"
+      "GNU LGPL (with unRAR license restriction).")
+      .arg(QStringLiteral(Z7QT_VERSION), QStringLiteral(MY_VERSION_NUMBERS)));
 }

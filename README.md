@@ -4,7 +4,7 @@ A Qt 6 port of the Windows 7-Zip File Manager (7zFM) for Linux.
 
 Unlike PeaZip, Ark or File Roller, it links 7-Zip as a library and opens nested items **in place**, reading straight from the parent's stream. That covers a partition inside a VHDX, the filesystem inside that partition, or a tar inside an xz. Nothing is extracted, so a 20 GB partition opens instantly. Only items that are stored compressed have to be unpacked, exactly as on Windows: small ones into RAM, large ones under `~/.cache/7zfm-qt`.
 
-It uses upstream 7-Zip 26.04 unmodified, and as much of upstream's own GUI code as possible.
+It uses upstream 7-Zip 26.05 unmodified, and as much of upstream's own GUI code as possible.
 
 ## Features
 
