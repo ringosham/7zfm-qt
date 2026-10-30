@@ -1,20 +1,33 @@
-# Builds 7zfm-qt from this source tree:  cd packaging/arch && makepkg -si
+# Builds the tagged 7zfm-qt release from GitHub:  makepkg -si
+# Each GitHub release has this PKGBUILD attached, with pkgver set to it.
 pkgname=7zfm-qt
 pkgver=0.1.0
 pkgrel=1
 pkgdesc="Qt port of the 7-Zip File Manager: opens archives, disk images and partitions in place, including nested ones"
 arch=('x86_64' 'aarch64')
-url="https://www.7-zip.org/"
+url="https://github.com/ringosham/7zfm-qt"
 license=('LGPL-2.1-or-later' 'LicenseRef-unRAR')
-depends=('qt6-base' 'gcc-libs' 'glibc')
-makedepends=('cmake' 'ninja' 'python')
-checkdepends=('dosfstools' 'mtools' 'e2fsprogs' 'qemu-img' 'util-linux' 'xz')
+depends=('qt6-base' 'libxcb' 'gcc-libs' 'glibc')
+makedepends=('cmake' 'ninja' 'python' 'git')
+checkdepends=('dbus' 'dosfstools' 'mtools' 'e2fsprogs' 'qemu-img' 'util-linux' 'xz')
+optdepends=('qt6-wayland: native Wayland windows'
+            'xdg-utils: View (F3) with the default application')
 options=('!lto')
+source=("git+https://github.com/ringosham/7zfm-qt.git#tag=v$pkgver"
+        "git+https://github.com/ip7z/7zip.git")
+sha256sums=('SKIP'
+            'SKIP')
 
-_srcroot="$startdir/../.."
+prepare() {
+  cd "$pkgname"
+  # the pinned 7-Zip commit, from makepkg's own clone
+  git submodule init
+  git config submodule.external/7zip.url "$srcdir/7zip"
+  git -c protocol.file.allow=always submodule update
+}
 
 build() {
-  cmake -S "$_srcroot" -B build -G Ninja \
+  cmake -S "$pkgname" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr
   cmake --build build
@@ -26,6 +39,6 @@ check() {
 
 package() {
   DESTDIR="$pkgdir" cmake --install build
-  install -Dm644 "$_srcroot/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 "$_srcroot/external/7zip/DOC/unRarLicense.txt" "$pkgdir/usr/share/licenses/$pkgname/unRarLicense.txt"
+  install -Dm644 "$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$pkgname/external/7zip/DOC/unRarLicense.txt" "$pkgdir/usr/share/licenses/$pkgname/unRarLicense.txt"
 }

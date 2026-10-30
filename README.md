@@ -25,10 +25,12 @@ git submodule update --init
 cmake -B build -G Ninja
 cmake --build build
 ctest --test-dir build --output-on-failure
-sudo cmake --install build        # or: cd packaging/arch && makepkg -si
+sudo cmake --install build
 ```
 
-Debian 13 and Ubuntu 25.04 or later (Qt 6.5 is the minimum): `packaging/debian/build.sh` builds and tests a `.deb` into `dist/`. With `--docker debian:trixie` (or `ubuntu:26.04`) it builds in a fresh container instead, so any distribution with Docker works. GitHub Actions builds both for amd64 and arm64 on every push, and attaches them to a release for each `v*` tag.
+Arch: `packaging/arch/PKGBUILD` builds the tagged GitHub release (`makepkg -si`); every release has it attached.
+
+Debian 13 and Ubuntu 25.04 or later (Qt 6.5 is the minimum): `packaging/debian/build.sh` builds and tests a `.deb` into `dist/`. With `--docker debian:trixie` (or `ubuntu:26.04`) it builds in a fresh container instead, so any distribution with Docker works. GitHub Actions builds both for amd64 and arm64 on every push to `master`, and publishes a release with them and the PKGBUILD for each `v*` tag.
 
 Options:
 - `-DSANITIZE=ON` for ASan and UBSan.

@@ -16,7 +16,6 @@ Build-Depends: debhelper-compat (= 13),
                qemu-utils <!nocheck>,
                qt6-qpa-plugins <!nocheck>,
                xz-utils <!nocheck>,
-               zip <!nocheck>,
 Standards-Version: 4.7.0
 Homepage: https://www.7-zip.org/
 Rules-Requires-Root: no

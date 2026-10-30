@@ -2,7 +2,7 @@ name: Debian packages
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -40,14 +40,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      - name: PKGBUILD for this release
+        run: |
+          sed "s/^pkgver=.*/pkgver=${GITHUB_REF_NAME#v}/; s/^pkgrel=.*/pkgrel=1/" \
+            packaging/arch/PKGBUILD > dist/PKGBUILD
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --generate-notes \
-            $(find dist -name '*.deb' ! -name '*-dbgsym_*')
+            dist/PKGBUILD $(find dist -name '*.deb' ! -name '*-dbgsym_*')
