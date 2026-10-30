@@ -16,6 +16,8 @@
 
 #include <algorithm>
 
+#include <sys/stat.h>
+
 using namespace NWindows;
 
 static int g_FolderAccessBlocked = 0;
@@ -295,13 +297,16 @@ QVariant FolderModel::DataImpl(const QModelIndex &index, int role) const
       return ToQ(GetItemText(_folder, _sort.FolderGetItemName, real, col.ID, kTimestampPrintLevel_MIN));
     }
     case Qt::DecorationRole:
+    {
       if (index.column() != 0)
         return QVariant();
-      if (_sort.IsItem_Folder(real))
-        return GetIconProvider().Folder();
-      if (_isDevicesFolder)
+      const bool isFolder = _sort.IsItem_Folder(real);
+      if (!isFolder && _isDevicesFolder)
         return GetIconProvider().ForDevice();
-      return GetIconProvider().ForFile(ToQ(_sort.GetItemName(real)));
+      const QIcon icon = isFolder ? GetIconProvider().Folder()
+          : GetIconProvider().ForFile(ToQ(_sort.GetItemName(real)));
+      return IsItemLink(real) ? GetIconProvider().WithLinkEmblem(icon) : icon;
+    }
     case Qt::TextAlignmentRole:
       if (IsSizeProp(col.ID) || col.ID == kpidCRC)
         return QVariant(Qt::AlignRight | Qt::AlignVCenter);
@@ -312,6 +317,18 @@ QVariant FolderModel::DataImpl(const QModelIndex &index, int role) const
       return (uint)real;
   }
   return QVariant();
+}
+
+// file-system folders give the lstat() mode; archives give the stored POSIX
+// mode, or only the link target (kpidSymLink) for formats without modes
+bool FolderModel::IsItemLink(UInt32 realIndex) const
+{
+  NCOM::CPropVariant prop;
+  if (_folder->GetProperty(realIndex, kpidPosixAttrib, &prop) == S_OK && prop.vt == VT_UI4)
+    return S_ISLNK(prop.ulVal);
+  prop.Clear();
+  return _folder->GetProperty(realIndex, kpidSymLink, &prop) == S_OK
+      && prop.vt == VT_BSTR && prop.bstrVal && prop.bstrVal[0] != 0;
 }
 
 QVariant FolderModel::headerData(int section, Qt::Orientation orientation, int role) const

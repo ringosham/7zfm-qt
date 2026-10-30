@@ -14,11 +14,16 @@ public:
   QIcon Folder();
   QIcon ForFile(const QString &name);
   QIcon ForDevice();
+  // base with the theme's link emblem in the bottom-right corner, as Dolphin
+  // draws symbolic links (upstream gets the shortcut arrow from the shell)
+  QIcon WithLinkEmblem(const QIcon &base);
 private:
   QMimeDatabase _db;
   QHash<QString, QIcon> _byExt;
   QIcon _folder;
   QIcon _file;
+  QIcon _linkEmblem;
+  QHash<qint64, QIcon> _linked;  // base cacheKey -> icon with the emblem
 };
 
 IconProvider &GetIconProvider();

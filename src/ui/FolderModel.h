@@ -77,6 +77,7 @@ private:
   QVariant DataImpl(const QModelIndex &index, int role) const;
   void LoadColumns();
   void Sort();
+  bool IsItemLink(UInt32 realIndex) const;
 
   CMyComPtr<IFolderFolder> _folder;
   CSortContext _sort;
