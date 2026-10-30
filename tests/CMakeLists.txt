@@ -12,6 +12,12 @@ set_source_files_properties(${SEVENZIP_DIR}/CPP/7zip/UI/Console/Main.cpp PROPERT
   COMPILE_DEFINITIONS Z7_PROG_VARIANT_Z)
 target_link_libraries(7zz PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
 
+# Both drivers use the generated images: build them once, before either
+# runs, so that parallel ctest (-j) cannot race on them.
+add_test(NAME fixtures
+  COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/make_fixtures.sh ${CMAKE_BINARY_DIR}/fixtures)
+set_tests_properties(fixtures PROPERTIES FIXTURES_SETUP images)
+
 add_test(NAME core_smoke
   COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_smoke.sh $<TARGET_FILE:core_smoke>
           ${CMAKE_BINARY_DIR}/fixtures ${PROJECT_SOURCE_DIR})
@@ -20,4 +26,9 @@ if(BUILD_GUI)
   add_test(NAME gui_offscreen
     COMMAND env SEVENZZ=$<TARGET_FILE:7zz> ${CMAKE_CURRENT_SOURCE_DIR}/run_gui.sh $<TARGET_FILE:7zfm-qt>
             ${CMAKE_BINARY_DIR}/fixtures ${PROJECT_SOURCE_DIR} ${CMAKE_BINARY_DIR}/gui-test)
+endif()
+
+set_tests_properties(core_smoke PROPERTIES FIXTURES_REQUIRED images)
+if(BUILD_GUI)
+  set_tests_properties(gui_offscreen PROPERTIES FIXTURES_REQUIRED images)
 endif()

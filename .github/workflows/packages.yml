@@ -1,4 +1,4 @@
-name: Debian packages
+name: Packages
 
 on:
   push:
@@ -8,15 +8,16 @@ on:
   workflow_dispatch:
 
 jobs:
-  deb:
+  package:
     name: ${{ matrix.distro.name }} ${{ matrix.arch.name }}
     runs-on: ${{ matrix.arch.runner }}
     strategy:
       fail-fast: false
       matrix:
         distro:
-          - { image: 'debian:trixie', name: debian13 }
-          - { image: 'ubuntu:26.04', name: ubuntu26.04 }
+          - { image: 'debian:trixie', name: debian13, format: debian, ext: deb }
+          - { image: 'ubuntu:26.04', name: ubuntu26.04, format: debian, ext: deb }
+          - { image: 'fedora:44', name: fedora44, format: rpm, ext: rpm }
         arch:
           - { runner: ubuntu-24.04, name: amd64 }
           - { runner: ubuntu-24.04-arm, name: arm64 }
@@ -26,16 +27,16 @@ jobs:
           submodules: true
           fetch-depth: 0  # the version comes from the tags and the commit date
       - name: Build and test
-        run: packaging/debian/build.sh --docker ${{ matrix.distro.image }}
+        run: packaging/${{ matrix.distro.format }}/build.sh --docker ${{ matrix.distro.image }}
       - uses: actions/upload-artifact@v4
         with:
           name: 7zfm-qt-${{ matrix.distro.name }}-${{ matrix.arch.name }}
-          path: dist/*.deb
+          path: dist/*.${{ matrix.distro.ext }}
           if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: deb
+    needs: package
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -55,4 +56,5 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" --generate-notes \
-            dist/PKGBUILD $(find dist -name '*.deb' ! -name '*-dbgsym_*')
+            dist/PKGBUILD $(find dist \( -name '*.deb' -o -name '*.rpm' \) \
+              ! -name '*-dbgsym_*' ! -name '*-debuginfo-*' ! -name '*-debugsource-*')

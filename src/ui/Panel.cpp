@@ -69,6 +69,8 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <dlfcn.h>
+
 #ifdef Z7QT_HAVE_XCB
 #include <xcb/xcb.h>
 #endif
@@ -1676,8 +1678,8 @@ QMimeData *Panel::CreateDragData()
 // (wl_data_source.dnd_drop_performed) before the target asks for the data.
 // Qt reports it only through a signal of its private QWaylandDataSource, so
 // the drag watches signals with Qt's signal-spy hook (QtCore's private
-// qobject_p.h, the one GammaRay uses; declared here so that the private
-// headers are not needed).
+// qobject_p.h, the one GammaRay uses). It is looked up at run time: a link
+// to a private symbol would tie the binary to one Qt minor version.
 struct QSignalSpyCallbackSet
 {
   typedef void (*BeginCallback)(QObject *caller, int signal_or_method_index, void **argv);
@@ -1685,8 +1687,16 @@ struct QSignalSpyCallbackSet
   BeginCallback signal_begin_callback, slot_begin_callback;
   EndCallback signal_end_callback, slot_end_callback;
 };
-void qt_register_signal_spy_callbacks(QSignalSpyCallbackSet *callback_set);
+typedef void (*RegisterSpyFunc)(QSignalSpyCallbackSet *callback_set);
 
+static RegisterSpyFunc SpyRegistrar()
+{
+  static const RegisterSpyFunc f = reinterpret_cast<RegisterSpyFunc>(dlsym(RTLD_DEFAULT,
+      "_Z32qt_register_signal_spy_callbacksP21QSignalSpyCallbackSet"));
+  return f;
+}
+
+static bool g_watchingDragSignals;
 static bool g_waylandDropPerformed;
 
 // the spy gets the signal index, which counts only the signals
@@ -1716,8 +1726,9 @@ bool Panel::DropHasHappened() const
   // Targets also read the URLs while the pointer moves over them, to decide
   // whether they accept the drop. Only a request after the drop needs the
   // files.
+  // without the hook, any request may be the drop
   if (QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
-    return g_waylandDropPerformed;
+    return !g_watchingDragSignals || g_waylandDropPerformed;
   if (QGuiApplication::platformName() != QLatin1String("xcb"))
     return true;
   // X11: the drop comes after the button is released. Qt's own button
@@ -1804,15 +1815,18 @@ void Panel::StartDrag()
     drag->setPixmap(icon.pixmap(32, 32));
   }
   static QSignalSpyCallbackSet spy = {WatchDragSignals, nullptr, nullptr, nullptr};
-  const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+  const RegisterSpyFunc watch = QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
+      ? SpyRegistrar() : nullptr;
   g_waylandDropPerformed = false;
-  if (wayland)
-    qt_register_signal_spy_callbacks(&spy);
+  g_watchingDragSignals = watch != nullptr;
+  if (watch)
+    watch(&spy);
   _inDrag = true;
   drag->exec(Qt::CopyAction, Qt::CopyAction);
   _inDrag = false;
-  if (wayland)
-    qt_register_signal_spy_callbacks(nullptr);
+  if (watch)
+    watch(nullptr);
+  g_watchingDragSignals = false;
   const QStringList drops = _pendingDrops;
   _pendingDrops.clear();
   for (const QString &d : drops)

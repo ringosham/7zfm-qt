@@ -20,6 +20,8 @@ set -eu
 if [ "${1:-}" = --inside ]; then
   # ---- second stage: in the scratch directory, natively or in the container ----
   shift
+  # in a container: give the files back to the host user, even on failure
+  if [ -n "${HOST_UID:-}" ]; then trap 'chown -R "$HOST_UID:$HOST_GID" "$(dirname "$0")"' EXIT; fi
   cd "$(dirname "$0")/7zfm-qt"
   export DEBIAN_FRONTEND=noninteractive
   if [ "${1:-}" = --install-deps ]; then
@@ -45,7 +47,6 @@ EOF
   dpkg-buildpackage -b -us -uc
   mkdir -p ../out
   cp ../*.deb ../out/
-  if [ -n "${HOST_UID:-}" ]; then chown -R "$HOST_UID:$HOST_GID" ..; fi
   exit 0
 fi
 
@@ -66,14 +67,8 @@ if [ ! -f "$src/external/7zip/CPP/7zip/UI/Agent/Agent.cpp" ]; then
   exit 1
 fi
 
-# 0.1.0 on the v0.1.0 tag, else 0.1.0~git20261027.b74c5c0
-ver=$(sed -n 's/^project(7zfm-qt VERSION \([0-9.]*\).*/\1/p' "$src/CMakeLists.txt")
+DEBVER=$("$src/packaging/version.sh" "$src")
 GITREV=$(git -C "$src" rev-parse --short=7 HEAD)
-if git -C "$src" describe --exact-match --tags --match "v$ver" HEAD >/dev/null 2>&1; then
-  DEBVER=$ver
-else
-  DEBVER="$ver~git$(git -C "$src" log -1 --format=%cd --date=format:%Y%m%d).$GITREV"
-fi
 export DEBVER GITREV
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/7zfm-qt-deb.XXXXXX")
