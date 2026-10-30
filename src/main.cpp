@@ -125,7 +125,9 @@ int main(int argc, char *argv[])
           {
             // a drop on Dolphin: KIO's DropJob calls the Ark DnD object
             std::unique_ptr<QMimeData> mime(w.GetPanel()->CreateDragData());
-            if (mime && mime->hasFormat(QLatin1String(DndExtract::ServiceMimeType())))
+            // nothing may be extracted before the drop
+            if (mime && !w.GetPanel()->DragItemsExtracted()
+                && mime->hasFormat(QLatin1String(DndExtract::ServiceMimeType())))
             {
               QDBusMessage m = QDBusMessage::createMethodCall(
                   QString::fromUtf8(mime->data(QLatin1String(DndExtract::ServiceMimeType()))),
@@ -134,6 +136,14 @@ int main(int argc, char *argv[])
               m.setArguments({a.mid(4)});
               QDBusConnection::sessionBus().asyncCall(m);
             }
+          }
+          else if (a.startsWith(QLatin1String("dnduri:")))
+          {
+            // a drop on a target that reads the URLs: extracted on request
+            std::unique_ptr<QMimeData> mime(w.GetPanel()->CreateDragData());
+            if (mime && !w.GetPanel()->DragItemsExtracted())
+              for (const QUrl &u : mime->urls())
+                QFile::copy(u.toLocalFile(), a.mid(7) + QLatin1Char('/') + u.fileName());
           }
           return;
         }

@@ -74,8 +74,13 @@ DESC="GUI: Edit (F4) in an archive opens the desktop's text editor"
 check launch "$WORK/add/content.7z/content/" --select drop.txt --keys "F4,@wait" --screenshot "$WORK/v2.png"
 check grep -q "^fakeedit -b file:///.*/7zO.*/drop.txt$" "$L/log"
 
+DESC="GUI: drop on a target reading the URLs extracts the items on request"
+mkdir -p "$WORK/dnduri"
+check run "$WORK/add/content.7z/content/" --select drop.txt --action "dnduri:$WORK/dnduri" --keys "@wait" --screenshot "$WORK/d2.png"
+check grep -q dropped "$WORK/dnduri/drop.txt"
+
 if command -v dbus-run-session >/dev/null 2>&1; then
-  DESC="GUI: drop on a KIO target (Ark DnD D-Bus call) copies out of the archive"
+  DESC="GUI: drop on a KIO target (Ark DnD D-Bus call) extracts there, not at drag start"
   mkdir -p "$WORK/dnd"
   check dbus-run-session -- sh -c 'timeout 60 "$@" >/dev/null 2>&1' sh "$APP" "$WORK/add/content.7z/content/" \
     --select drop.txt --action "dnd:$WORK/dnd" --keys "@wait,@wait" --screenshot "$WORK/d1.png"

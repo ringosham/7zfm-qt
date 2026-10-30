@@ -17,6 +17,7 @@
 
 #include <QPointer>
 #include <QStringList>
+#include <QUrl>
 #include <QVector>
 #include <QWidget>
 
@@ -29,6 +30,7 @@ class QListView;
 class QStackedWidget;
 class QTemporaryDir;
 class QTreeView;
+class QVariant;
 class QAbstractItemView;
 class QItemSelectionModel;
 class FolderModel;
@@ -156,6 +158,7 @@ public:
   void Properties();
   void StartDrag();                        // drag selected items out
   QMimeData *CreateDragData();             // StartDrag's data (tests use it too)
+  bool DragItemsExtracted() const { return !_dragFiles.IsEmpty(); }  // tests
   void SelectByName(const QString &name);  // focus + select one item
   void SetViewMode(int mode);  // 0 large icons, 1 small icons, 2 list, 3 details
   void ApplySettings();        // upstream CFmSettings (Options > Settings)
@@ -259,10 +262,22 @@ private:
   bool _flatMode = false;
   QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
 
-  // drag out of an archive to KDE file managers (see DndExtract.h)
+  // Drag out of an archive. Like 7zFM, nothing is extracted when the drag
+  // starts: KDE file managers call DndExtract on the drop and the items are
+  // extracted straight to the destination; other targets get temp-folder
+  // URLs, filled once the drop asks for them (DragFileData).
+  friend class DragMimeData;
+  QVariant DragFileData(const QString &format);
+  bool DropHasHappened() const;
+  bool ExtractDragItemsToTemp();
   void CopyDraggedFilesTo(const QString &dest);
   DndExtract *_dndExtract = nullptr;
-  UStringVector _dragFiles;     // the extracted temp copies being dragged
+  CRecordVector<UInt32> _dragIndices;   // the dragged items of _dragFolder
+  CMyComPtr<IFolderFolder> _dragFolder;
+  std::shared_ptr<QTemporaryDir> _dragTemp;
+  QList<QUrl> _dragUrls;        // where the items are, or will be once extracted
+  UStringVector _dragFiles;     // the temp copies, once extracted
+  bool _dragExtracting = false;
   bool _inDrag = false;
   QStringList _pendingDrops;    // drops reported while QDrag::exec still runs
 

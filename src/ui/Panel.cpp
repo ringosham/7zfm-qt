@@ -42,6 +42,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QDateTime>
 #include <QDrag>
 #include <QDragEnterEvent>
@@ -66,6 +67,10 @@
 #include <QTreeView>
 #include <QUrl>
 #include <QVBoxLayout>
+
+#ifdef Z7QT_HAVE_XCB
+#include <xcb/xcb.h>
+#endif
 
 using namespace NWindows;
 using namespace NFile;
@@ -1582,6 +1587,37 @@ void Panel::SelectByName(const QString &name)
 
 // ---------- drag out (upstream PanelDrag.cpp) ----------
 
+// The drag's data. The URLs of items in an archive point into a temp folder
+// that is filled only when a drop asks for them (Panel::DragFileData).
+class DragMimeData : public QMimeData
+{
+public:
+  DragMimeData(Panel *panel, const QStringList &lazyFormats):
+      _panel(panel), _lazy(lazyFormats) {}
+  QStringList formats() const override
+  {
+    QStringList f = _lazy;
+    for (const QString &s : QMimeData::formats())
+      if (!f.contains(s))
+        f << s;
+    return f;
+  }
+  bool hasFormat(const QString &format) const override
+  {
+    return _lazy.contains(format) || QMimeData::hasFormat(format);
+  }
+protected:
+  QVariant retrieveData(const QString &format, QMetaType type) const override
+  {
+    if (_lazy.contains(format))
+      return _panel ? _panel->DragFileData(format) : QVariant();
+    return QMimeData::retrieveData(format, type);
+  }
+private:
+  QPointer<Panel> _panel;
+  QStringList _lazy;
+};
+
 QMimeData *Panel::CreateDragData()
 {
   CRecordVector<UInt32> indices;
@@ -1590,72 +1626,127 @@ QMimeData *Panel::CreateDragData()
     return nullptr;
 
   QList<QUrl> urls;
-  _dragFiles.Clear();
   if (_parentFolders.isEmpty() && IsFSFolder())
   {
     FOR_VECTOR (i, indices)
       urls << QUrl::fromLocalFile(ToQ(GetFsPath() + GetItemRelPath(indices[i])));
-  }
-  else
-  {
-    // Like 7zFM: the items are extracted to a temp folder first, then the
-    // files are dragged from there. (Windows delays this until the drop;
-    // X11/Wayland drag sources need the paths up front.)
-    std::shared_ptr<QTemporaryDir> temp = CreateTempDir();
-    if (!temp)
-      return nullptr;
-    UString dir = ToU(temp->path());
-    NName::NormalizeDirPathPrefix(dir);
-    CCopyToOptions options;
-    options.folder = dir;
-    options.showErrorMessages = true;
-    bool usePassword = false;
-    UString password;
-    if (!_parentFolders.isEmpty())
-    {
-      usePassword = _parentFolders.back().UsePassword;
-      password = _parentFolders.back().Password;
-    }
-    UStringVector messages;
-    const HRESULT res = CopyTo(options, indices, &messages, usePassword, password);
-    if (res != S_OK || !messages.IsEmpty())
-      return nullptr;
-    if (!_parentFolders.isEmpty())
-    {
-      _parentFolders.back().UsePassword = usePassword;
-      _parentFolders.back().Password = password;
-    }
-    FOR_VECTOR (i, indices)
-    {
-      const UString path = dir + GetItemName(indices[i]);
-      urls << QUrl::fromLocalFile(ToQ(path));
-      _dragFiles.Add(path);
-    }
-    _externalTemps.append(temp);  // the drop target may copy lazily
+    auto *mime = new QMimeData;
+    mime->setUrls(urls);
+    // GNOME/KDE file managers understand this for copy vs. move
+    mime->setData(QStringLiteral("x-special/gnome-copied-files"),
+        QByteArray("copy\n") + QUrl::toStringList(urls, QUrl::FullyEncoded).join(QLatin1Char('\n')).toUtf8());
+    return mime;
   }
 
-  auto *mime = new QMimeData;
-  mime->setUrls(urls);
-  // GNOME/KDE file managers understand this for copy vs. move
-  mime->setData(QStringLiteral("x-special/gnome-copied-files"),
-      QByteArray("copy\n") + QUrl::toStringList(urls, QUrl::FullyEncoded).join(QLatin1Char('\n')).toUtf8());
-  if (!_dragFiles.IsEmpty())
+  // Like 7zFM, nothing is extracted yet: only where the items will go.
+  std::shared_ptr<QTemporaryDir> temp = CreateTempDir();
+  if (!temp)
+    return nullptr;
+  UString dir = ToU(temp->path());
+  NName::NormalizeDirPathPrefix(dir);
+  FOR_VECTOR (i, indices)
+    urls << QUrl::fromLocalFile(ToQ(dir + GetItemName(indices[i])));
+  _dragIndices = indices;
+  _dragFolder = _folder;
+  _dragTemp = temp;
+  _dragUrls = urls;
+  _dragFiles.Clear();
+  _externalTemps.append(temp);  // the drop target may copy lazily
+
+  auto *mime = new DragMimeData(this,
+      {QStringLiteral("text/uri-list"), QStringLiteral("x-special/gnome-copied-files")});
+  // KIO targets (Dolphin, the Plasma desktop) then call us to extract to
+  // the destination, instead of copying the temp files
+  if (!_dndExtract)
   {
-    // KIO targets (Dolphin, the Plasma desktop) then call us back to copy,
-    // instead of asking Copy/Move/Link for the temp files
-    if (!_dndExtract)
-    {
-      _dndExtract = new DndExtract(this);
-      connect(_dndExtract, &DndExtract::ExtractRequested, this,
-          &Panel::CopyDraggedFilesTo, Qt::QueuedConnection);
-    }
-    if (_dndExtract->IsRegistered())
-    {
-      mime->setData(QLatin1String(DndExtract::ServiceMimeType()), _dndExtract->Service().toUtf8());
-      mime->setData(QLatin1String(DndExtract::PathMimeType()), _dndExtract->Path().toUtf8());
-    }
+    _dndExtract = new DndExtract(this);
+    connect(_dndExtract, &DndExtract::ExtractRequested, this,
+        &Panel::CopyDraggedFilesTo, Qt::QueuedConnection);
+  }
+  if (_dndExtract->IsRegistered())
+  {
+    mime->setData(QLatin1String(DndExtract::ServiceMimeType()), _dndExtract->Service().toUtf8());
+    mime->setData(QLatin1String(DndExtract::PathMimeType()), _dndExtract->Path().toUtf8());
   }
   return mime;
+}
+
+bool Panel::DropHasHappened() const
+{
+  if (!_inDrag)
+    return true;
+  // X11 targets also read the URLs while the pointer moves over them, to
+  // decide whether they accept the drop; the drop itself comes after the
+  // button is released. Qt's own button state is stale during a drag, so
+  // the X server is asked. Wayland sends no buttons during a drag, so there
+  // any request may be the drop.
+  if (QGuiApplication::platformName() != QLatin1String("xcb"))
+    return true;
+#ifdef Z7QT_HAVE_XCB
+  if (auto *x11 = qGuiApp->nativeInterface<QNativeInterface::QX11Application>())
+  {
+    xcb_connection_t *c = x11->connection();
+    xcb_query_pointer_reply_t *r = xcb_query_pointer_reply(c,
+        xcb_query_pointer(c, (xcb_window_t)window()->winId()), nullptr);
+    if (r)
+    {
+      const bool down = (r->mask & (XCB_BUTTON_MASK_1 | XCB_BUTTON_MASK_2 | XCB_BUTTON_MASK_3)) != 0;
+      free(r);
+      return !down;
+    }
+  }
+#endif
+  return QGuiApplication::mouseButtons() == Qt::NoButton;
+}
+
+QVariant Panel::DragFileData(const QString &format)
+{
+  // the files must exist once the drop reads the URLs
+  if (DropHasHappened() && _dragFiles.IsEmpty() && !_dragExtracting)
+    if (!ExtractDragItemsToTemp())
+      return QVariant();
+  if (format == QLatin1String("text/uri-list"))
+  {
+    QVariantList list;
+    for (const QUrl &u : _dragUrls)
+      list << u;
+    return list;
+  }
+  return QByteArray("copy\n") + QUrl::toStringList(_dragUrls, QUrl::FullyEncoded).join(QLatin1Char('\n')).toUtf8();
+}
+
+bool Panel::ExtractDragItemsToTemp()
+{
+  if (!_dragTemp || _dragFolder != _folder)
+    return false;
+  _dragExtracting = true;
+  UString dir = ToU(_dragTemp->path());
+  NName::NormalizeDirPathPrefix(dir);
+  CCopyToOptions options;
+  options.folder = dir;
+  options.showErrorMessages = true;
+  bool usePassword = false;
+  UString password;
+  if (!_parentFolders.isEmpty())
+  {
+    usePassword = _parentFolders.back().UsePassword;
+    password = _parentFolders.back().Password;
+  }
+  UStringVector messages;
+  const CRecordVector<UInt32> indices = _dragIndices;
+  const HRESULT res = CopyTo(options, indices, &messages, usePassword, password);
+  _dragExtracting = false;
+  if (res != S_OK || !messages.IsEmpty())
+    return false;
+  if (!_parentFolders.isEmpty())
+  {
+    _parentFolders.back().UsePassword = usePassword;
+    _parentFolders.back().Password = password;
+  }
+  _dragFiles.Clear();
+  for (const QUrl &u : _dragUrls)
+    _dragFiles.Add(ToU(u.toLocalFile()));
+  return true;
 }
 
 void Panel::StartDrag()
@@ -1689,8 +1780,6 @@ void Panel::CopyDraggedFilesTo(const QString &dest)
     _pendingDrops << dest;
     return;
   }
-  if (_dragFiles.IsEmpty())
-    return;
   // KIO passes a local path, or a URL for other destinations
   QString dir = dest;
   if (!dir.startsWith(QLatin1Char('/')))
@@ -1709,9 +1798,30 @@ void Panel::CopyDraggedFilesTo(const QString &dest)
   options.showErrorMessages = true;
   bool usePassword = false;
   UString password;
-  CRecordVector<UInt32> none;
-  const UStringVector files = _dragFiles;  // a new drag may start meanwhile
-  CopyTo(options, none, NULL, usePassword, password, &files);
+  if (!_dragFiles.IsEmpty())
+  {
+    // already extracted for another target: copy those
+    CRecordVector<UInt32> none;
+    const UStringVector files = _dragFiles;  // a new drag may start meanwhile
+    CopyTo(options, none, NULL, usePassword, password, &files);
+    return;
+  }
+  // extract straight to the destination, as 7zFM does on a drop
+  if (_dragIndices.IsEmpty() || _dragFolder != _folder)
+    return;
+  if (!_parentFolders.isEmpty())
+  {
+    usePassword = _parentFolders.back().UsePassword;
+    password = _parentFolders.back().Password;
+  }
+  UStringVector messages;
+  const CRecordVector<UInt32> indices = _dragIndices;
+  if (CopyTo(options, indices, &messages, usePassword, password) == S_OK
+      && !_parentFolders.isEmpty())
+  {
+    _parentFolders.back().UsePassword = usePassword;
+    _parentFolders.back().Password = password;
+  }
 }
 
 // ---------- properties ----------
