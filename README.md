@@ -1,55 +1,22 @@
 # 7zfm-qt
 
-A Qt 6 port of the Windows 7-Zip File Manager (7zFM) for Linux.
+A Qt 6 native port of the Windows 7-Zip File Manager (7zFM) for Linux purely for personal use.
 
-Unlike PeaZip, Ark or File Roller, it links 7-Zip as a library and opens nested items **in place**, reading straight from the parent's stream. That covers a partition inside a VHDX, the filesystem inside that partition, or a tar inside an xz. Nothing is extracted, so a 20 GB partition opens instantly. Only items that are stored compressed have to be unpacked, exactly as on Windows: small ones into RAM, large ones under `~/.cache/7zfm-qt`.
+> [!CAUTION]
+> Fully vibecoded software with minimal review. Do not use in production. While this is based on upstream 7-Zip, we cannot guarantee any security issues or maintenance will be addressed on the frontend side. Use at your own risk.
 
 It uses upstream 7-Zip 26.05 unmodified, and as much of upstream's own GUI code as possible.
 
-## Features
+## Why?
 
 **Open by signature, not extension**
-- Everything 7-Zip reads: 7z, zip, rar/rar5, tar, gz/xz/zstd/bz2, iso/udf, cab/msi/wim, dmg, squashfs, cpio/rpm/deb, and more.
-- Disk images: raw, VHD, VHDX, VMDK, VDI, QCOW2.
-- Partition tables: GPT, MBR, APM.
-- Filesystems: NTFS, FAT/exFAT, ext2/3/4, HFS+, APFS.
-- Raw block devices under Computer → Devices, opened read-only. You need read permission on the device, e.g. membership in the `disk` group.
+- Opens as long as it recognizes the file signature, not by the file extension
+- Everything 7-Zip already reads: Archives, ISOs, disk images, partitions, even raw filesystem dumps
+- It can open raw block devices in /dev if given root, read only
 
-**Opening items**
-- Open Inside (Ctrl+PgDn), Open Inside `*`, Open Inside `#` (parser mode: finds embedded archives), Open Outside (Shift+Enter).
-- Typed nested paths work: `/x/disk.vhdx/1.linux.img/home` opens each level in place.
-
-**Extracting and testing**
-- Extract, using upstream's Extract dialog logic.
-- Test.
-- Copy To (F5) out of archives.
-- Drag out to other applications. Dropping on Dolphin or the Plasma desktop copies straight away, without the Copy/Move/Link menu, through the same D-Bus call Ark uses.
-- Password, overwrite and memory-limit prompts.
-
-**Editing archives**
-- Add to Archive, using upstream's own CompressDialog.
-- Delete, rename (F2), Create Folder (F7), Create File (Ctrl+N) and Comment (Ctrl+Z) inside archives.
-- Drag files in to add them.
-- View (F3) and Edit (F4): a file changed in another application is offered for update in the archive, as in 7zFM.
-
-**File management**
-- File-system operations: copy, move, rename, delete (to trash, or permanently with Shift+Del), new file and new folder.
-- Split and Combine, Link (hard and symbolic links).
-
-**Tools and settings**
-- CRC menu: CRC-32/64, XXH64, MD5, SHA-1/256/384/512, SHA3-256, BLAKE2sp.
-- Benchmark, using upstream's dialog.
-- Options: the Settings, Folders and Editor pages.
-
-**Interface**
-- Two panels (F9), as in 7zFM:
-  - Tab switches panels.
-  - F5/F6 copy or move to the other panel's folder: out of an archive, into one, or from archive to archive through a temp folder.
-  - Shift+F5/F6 copy under a new name in the same folder.
-  - Alt+Up shows the same folder in the other panel; Alt+Left/Right opens the focused subfolder there.
-  - The panel count, the focused panel, each panel's folder and view mode are saved.
-- Flat view, column layouts saved per folder type, sorting like 7zFM.
-- Favorites (Alt+Shift+N to set, Alt+N to go), folder history, properties (Alt+Enter) with every archive level's info.
+**Directly open nested disk images without extracting**
+- Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
+- This port builds 7-Zip as a library just like the Windows version. You can now directly open them at zero waiting time.
 
 ## Build
 
@@ -112,9 +79,10 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 - **Options.** The System (file associations) and 7-Zip (Explorer menu) pages are left out; use your desktop's "Open with" instead, since the `.desktop` file registers the MIME types. There is no Language page yet.
 - **Not applicable on Linux:** NTFS alternate streams, security descriptors, Mark-of-the-Web, large pages, junctions and WSL links.
 - **View and Edit** with no program set in Options > Editor: F3 opens the file's default application and F4 the desktop's default text editor. Upstream uses Notepad for both.
-- **Drag-out** extracts when the drag starts, because X11 and Wayland need paths up front. Windows waits for the drop.
-- **RAR.** Extraction only, as upstream; 7-Zip has no RAR encoder. RAR test fixtures are skipped unless the `rar` CLI is installed.
+- **Drag and drop** to extract is currenly only tested to work well on Dolphin only.
 
 ## License
 
 LGPL-2.1-or-later, with the unRAR license restriction. See `LICENSE`, which is upstream's `DOC/License.txt`. 7-Zip is Copyright (C) Igor Pavlov.
+
+*As much as I want to make this CC0 because I didn't write any of it, the project is derived from 7-Zip. Hence bound by the same license.*
