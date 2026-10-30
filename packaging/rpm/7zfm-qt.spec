@@ -65,5 +65,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 
 %changelog
+* Fri Oct 30 2026 Ringo Sham <ringosham@gmail.com> - 0.1.1-1
+- Symbolic links show the link emblem.
+
 * Fri Oct 30 2026 Ringo Sham <ringosham@gmail.com> - 0.1.0-1
 - First RPM packaging.
