@@ -60,6 +60,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMetaMethod>
 #include <QMessageBox>
 #include <QStackedWidget>
 #include <QStyle>
@@ -1671,17 +1672,56 @@ QMimeData *Panel::CreateDragData()
   return mime;
 }
 
+// Wayland: the compositor tells the drag source about the drop
+// (wl_data_source.dnd_drop_performed) before the target asks for the data.
+// Qt reports it only through a signal of its private QWaylandDataSource, so
+// the drag watches signals with Qt's signal-spy hook (QtCore's private
+// qobject_p.h, the one GammaRay uses; declared here so that the private
+// headers are not needed).
+struct QSignalSpyCallbackSet
+{
+  typedef void (*BeginCallback)(QObject *caller, int signal_or_method_index, void **argv);
+  typedef void (*EndCallback)(QObject *caller, int signal_or_method_index);
+  BeginCallback signal_begin_callback, slot_begin_callback;
+  EndCallback signal_end_callback, slot_end_callback;
+};
+void qt_register_signal_spy_callbacks(QSignalSpyCallbackSet *callback_set);
+
+static bool g_waylandDropPerformed;
+
+// the spy gets the signal index, which counts only the signals
+static QMetaMethod SignalByIndex(const QMetaObject *mo, int signalIndex)
+{
+  for (int i = 0; i < mo->methodCount(); i++)
+    if (mo->method(i).methodType() == QMetaMethod::Signal && signalIndex-- == 0)
+      return mo->method(i);
+  return QMetaMethod();
+}
+
+static void WatchDragSignals(QObject *sender, int signalIndex, void **argv)
+{
+  const QMetaObject *mo = sender->metaObject();
+  if (qstrcmp(mo->className(), "QtWaylandClient::QWaylandDataSource") != 0)
+    return;
+  const QMetaMethod m = SignalByIndex(mo, signalIndex);
+  // dndDropped(bool accepted, Qt::DropAction action)
+  if (m.name() == "dndDropped" && argv && argv[1] && *static_cast<bool *>(argv[1]))
+    g_waylandDropPerformed = true;
+}
+
 bool Panel::DropHasHappened() const
 {
   if (!_inDrag)
     return true;
-  // X11 targets also read the URLs while the pointer moves over them, to
-  // decide whether they accept the drop; the drop itself comes after the
-  // button is released. Qt's own button state is stale during a drag, so
-  // the X server is asked. Wayland sends no buttons during a drag, so there
-  // any request may be the drop.
+  // Targets also read the URLs while the pointer moves over them, to decide
+  // whether they accept the drop. Only a request after the drop needs the
+  // files.
+  if (QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+    return g_waylandDropPerformed;
   if (QGuiApplication::platformName() != QLatin1String("xcb"))
     return true;
+  // X11: the drop comes after the button is released. Qt's own button
+  // state is stale during a drag, so the X server is asked.
 #ifdef Z7QT_HAVE_XCB
   if (auto *x11 = qGuiApp->nativeInterface<QNativeInterface::QX11Application>())
   {
@@ -1763,9 +1803,16 @@ void Panel::StartDrag()
         : GetIconProvider().ForFile(ToQ(GetItemName((unsigned)focused)));
     drag->setPixmap(icon.pixmap(32, 32));
   }
+  static QSignalSpyCallbackSet spy = {WatchDragSignals, nullptr, nullptr, nullptr};
+  const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+  g_waylandDropPerformed = false;
+  if (wayland)
+    qt_register_signal_spy_callbacks(&spy);
   _inDrag = true;
   drag->exec(Qt::CopyAction, Qt::CopyAction);
   _inDrag = false;
+  if (wayland)
+    qt_register_signal_spy_callbacks(nullptr);
   const QStringList drops = _pendingDrops;
   _pendingDrops.clear();
   for (const QString &d : drops)
