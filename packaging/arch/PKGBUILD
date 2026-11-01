@@ -9,6 +9,7 @@ url="https://github.com/ringosham/7zfm-qt"
 license=('LGPL-2.1-or-later' 'LicenseRef-unRAR')
 depends=('qt6-base' 'libxcb' 'gcc-libs' 'glibc')
 makedepends=('cmake' 'ninja' 'python' 'git')
+makedepends_x86_64=('uasm')  # 7-Zip's assembly LZMA decoder
 checkdepends=('dbus' 'dosfstools' 'mtools' 'e2fsprogs' 'qemu-img' 'util-linux' 'xz')
 optdepends=('qt6-wayland: native Wayland windows'
             'xdg-utils: View (F3) with the default application')

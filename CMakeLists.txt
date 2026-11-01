@@ -61,6 +61,43 @@ target_include_directories(7zcore PUBLIC
   ${SEVENZIP_DIR}/CPP
   ${SEVENZIP_DIR})
 set_target_properties(7zcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# Upstream's assembly LZMA decoder (USE_LZMA_DEC_ASM in 7zip_gcc.mak) decodes
+# about twice as fast as LzmaDec.c. arm64's is GNU syntax; x86_64's is MASM
+# syntax, so it needs uasm (or jwasm/asmc, as upstream allows).
+option(LZMA_DEC_ASM "Use 7-Zip's assembly LZMA decoder when it can be built" ON)
+set(LZMA_DEC_ASM_USED OFF)
+if(LZMA_DEC_ASM)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    enable_language(ASM)
+    target_sources(7zcore PRIVATE ${SEVENZIP_DIR}/Asm/arm64/LzmaDecOpt.S)
+    set(LZMA_DEC_ASM_USED ON)
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)$")
+    find_program(MASM_ASSEMBLER NAMES uasm jwasm asmc)
+    if(MASM_ASSEMBLER)
+      set(LZMA_DEC_OPT_OBJ ${CMAKE_CURRENT_BINARY_DIR}/LzmaDecOpt.o)
+      add_custom_command(OUTPUT ${LZMA_DEC_OPT_OBJ}
+        COMMAND ${MASM_ASSEMBLER} -nologo -elf64 -DABI_LINUX -Fo${LZMA_DEC_OPT_OBJ}
+                ${SEVENZIP_DIR}/Asm/x86/LzmaDecOpt.asm
+        DEPENDS ${SEVENZIP_DIR}/Asm/x86/LzmaDecOpt.asm ${SEVENZIP_DIR}/Asm/x86/7zAsm.asm
+        VERBATIM)
+      # an OBJECT library doesn't pass prebuilt objects on to its users
+      add_library(lzmadecopt STATIC ${LZMA_DEC_OPT_OBJ})
+      set_target_properties(lzmadecopt PROPERTIES LINKER_LANGUAGE C)
+      target_link_libraries(7zcore PUBLIC lzmadecopt)
+      set(LZMA_DEC_ASM_USED ON)
+    endif()
+  endif()
+endif()
+if(LZMA_DEC_ASM_USED)
+  set_source_files_properties(${SEVENZIP_DIR}/C/LzmaDec.c PROPERTIES
+    COMPILE_DEFINITIONS Z7_LZMA_DEC_OPT)
+  # the asm objects carry no .note.GNU-stack; upstream links the same way
+  target_link_options(7zcore PUBLIC LINKER:-z,noexecstack)
+  message(STATUS "LZMA decoder: assembly")
+else()
+  message(STATUS "LZMA decoder: C (on x86_64, install uasm for the faster one)")
+endif()
 find_package(Threads REQUIRED)
 target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads ${CMAKE_DL_LIBS})
 
