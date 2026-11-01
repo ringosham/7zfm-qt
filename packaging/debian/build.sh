@@ -9,6 +9,8 @@
 #                   Build-Depends there)
 #   --out DIR       where the .deb files go (default: dist/ in the source tree)
 #   --nocheck       skip the tests
+#   --uasm FILE     a uasm binary to build with, for 7-Zip's assembly LZMA
+#                   decoder on x86_64 (distributions don't package uasm)
 #
 # Needs Qt >= 6.5: Debian 13 (trixie), Ubuntu 25.04 or later.
 #
@@ -22,6 +24,9 @@ if [ "${1:-}" = --inside ]; then
   shift
   # in a container: give the files back to the host user, even on failure
   if [ -n "${HOST_UID:-}" ]; then trap 'chown -R "$HOST_UID:$HOST_GID" "$(dirname "$0")"' EXIT; fi
+  if [ -x "$(dirname "$0")/tools/uasm" ]; then
+    PATH="$(cd "$(dirname "$0")/tools" && pwd):$PATH"; export PATH
+  fi
   cd "$(dirname "$0")/7zfm-qt"
   export DEBIAN_FRONTEND=noninteractive
   if [ "${1:-}" = --install-deps ]; then
@@ -50,13 +55,14 @@ EOF
   exit 0
 fi
 
-image= out=
+image= out= uasm=
 while [ $# -gt 0 ]; do
   case "$1" in
     --docker) image=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
+    --uasm) uasm=$2; shift 2 ;;
     --nocheck) export DEB_BUILD_OPTIONS="${DEB_BUILD_OPTIONS:+$DEB_BUILD_OPTIONS }nocheck"; shift ;;
-    *) echo "usage: $0 [--docker IMAGE] [--out DIR] [--nocheck]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--docker IMAGE] [--out DIR] [--nocheck] [--uasm FILE]" >&2; exit 2 ;;
   esac
 done
 
@@ -78,6 +84,7 @@ mkdir "$work/7zfm-qt"
   tar -C "$work/7zfm-qt" -xf -
 cp -r "$src/packaging/debian/debian" "$work/7zfm-qt/debian"
 cp "$0" "$work/build.sh"
+if [ -n "$uasm" ]; then mkdir "$work/tools" && cp "$uasm" "$work/tools/uasm"; fi
 
 if [ -n "$image" ]; then
   docker run --rm -v "$work:/work" \

@@ -26,8 +26,16 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0  # the version comes from the tags and the commit date
+      # no distribution packages uasm, which 7-Zip's x86_64 LZMA decoder needs
+      - name: Build UASM
+        if: matrix.arch.name == 'amd64'
+        run: |
+          git clone --quiet --depth 1 --branch v2.57r https://github.com/Terraspace/UASM "$RUNNER_TEMP/uasm"
+          test "$(git -C "$RUNNER_TEMP/uasm" rev-parse HEAD)" = 97f643891c19ef257e45f1bf67cb47244ae72784
+          make -C "$RUNNER_TEMP/uasm" -f Makefile-Linux-GCC-64.mak >/dev/null
+          echo "UASM_ARGS=--uasm $RUNNER_TEMP/uasm/GccUnixR/uasm" >> "$GITHUB_ENV"
       - name: Build and test
-        run: packaging/${{ matrix.distro.format }}/build.sh --docker ${{ matrix.distro.image }}
+        run: packaging/${{ matrix.distro.format }}/build.sh --docker ${{ matrix.distro.image }} $UASM_ARGS
       - uses: actions/upload-artifact@v4
         with:
           name: 7zfm-qt-${{ matrix.distro.name }}-${{ matrix.arch.name }}

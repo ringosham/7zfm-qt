@@ -65,6 +65,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 
 %changelog
+* Sun Nov 01 2026 Ringo Sham <ringosham@gmail.com> - 0.2.0-1
+- 7-Zip's assembly LZMA decoder (built with uasm on x86_64).
+
 * Fri Oct 30 2026 Ringo Sham <ringosham@gmail.com> - 0.1.1-1
 - Symbolic links show the link emblem.
 

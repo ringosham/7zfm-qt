@@ -34,7 +34,7 @@ Debian 13 and Ubuntu 25.04 or later (Qt 6.5 is the minimum): `packaging/debian/b
 
 GitHub Actions builds the Debian 13, Ubuntu 26.04 and Fedora 44 packages for amd64 and arm64 on every push to `master`, and publishes a release with them and the PKGBUILD for each `v*` tag.
 
-On x86_64, install `uasm` (or `jwasm`/`asmc`) for 7-Zip's assembly LZMA decoder, which decodes about twice as fast as the C one; the configure step reports which is used. arm64 always gets it. Debian, Ubuntu and Fedora don't package uasm, so their x86_64 packages use the C decoder.
+On x86_64, install `uasm` (or `jwasm`/`asmc`) for 7-Zip's assembly LZMA decoder, which decodes about twice as fast as the C one; the configure step reports which is used. arm64 always gets it. Debian, Ubuntu and Fedora don't package uasm, so their build scripts take one with `--uasm FILE`; CI builds UASM 2.57 from source for the amd64 packages.
 
 Options:
 - `-DSANITIZE=ON` for ASan and UBSan.

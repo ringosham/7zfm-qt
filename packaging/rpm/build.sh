@@ -9,6 +9,8 @@
 #                   BuildRequires there)
 #   --out DIR       where the .rpm files go (default: dist/ in the source tree)
 #   --nocheck       skip the tests
+#   --uasm FILE     a uasm binary to build with, for 7-Zip's assembly LZMA
+#                   decoder on x86_64 (distributions don't package uasm)
 #
 # Needs Qt >= 6.5; tested on Fedora 44.
 #
@@ -22,6 +24,9 @@ if [ "${1:-}" = --inside ]; then
   shift
   # in a container: give the files back to the host user, even on failure
   if [ -n "${HOST_UID:-}" ]; then trap 'chown -R "$HOST_UID:$HOST_GID" "$(dirname "$0")"' EXIT; fi
+  if [ -x "$(dirname "$0")/tools/uasm" ]; then
+    PATH="$(cd "$(dirname "$0")/tools" && pwd):$PATH"; export PATH
+  fi
   cd "$(dirname "$0")"
   if [ "${1:-}" = --install-deps ]; then
     dnf install -y -q rpm-build 'dnf-command(builddep)'
@@ -34,13 +39,14 @@ if [ "${1:-}" = --inside ]; then
   exit 0
 fi
 
-image= out= Z7WITHOUT=
+image= out= uasm= Z7WITHOUT=
 while [ $# -gt 0 ]; do
   case "$1" in
     --docker) image=$2; shift 2 ;;
     --out) out=$2; shift 2 ;;
+    --uasm) uasm=$2; shift 2 ;;
     --nocheck) Z7WITHOUT=1; shift ;;
-    *) echo "usage: $0 [--docker IMAGE] [--out DIR] [--nocheck]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--docker IMAGE] [--out DIR] [--nocheck] [--uasm FILE]" >&2; exit 2 ;;
   esac
 done
 
@@ -60,6 +66,7 @@ trap 'rm -rf "$work"' EXIT
   tar --null -T - --ignore-failed-read --transform "s,^,7zfm-qt-$Z7VER/," -czf "$work/7zfm-qt-$Z7VER.tar.gz")
 cp "$src/packaging/rpm/7zfm-qt.spec" "$work/"
 cp "$0" "$work/build.sh"
+if [ -n "$uasm" ]; then mkdir "$work/tools" && cp "$uasm" "$work/tools/uasm"; fi
 
 if [ -n "$image" ]; then
   docker run --rm -v "$work:/work" \

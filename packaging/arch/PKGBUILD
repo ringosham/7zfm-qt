@@ -1,7 +1,7 @@
 # Builds the tagged 7zfm-qt release from GitHub:  makepkg -si
 # Each GitHub release has this PKGBUILD attached, with pkgver set to it.
 pkgname=7zfm-qt
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Qt port of the 7-Zip File Manager: opens archives, disk images and partitions in place, including nested ones"
 arch=('x86_64' 'aarch64')
