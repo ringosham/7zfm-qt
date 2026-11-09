@@ -77,6 +77,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Mon Nov 09 2026 Ringo Sham <ringosham@gmail.com> - 0.3.0-1
+- 7-Zip context menus for Dolphin, Nemo, PCManFM-Qt, Caja and Thunar.
+
 * Mon Nov 09 2026 Ringo Sham <ringosham@gmail.com> - 0.2.1-1
 - 7-Zip 26.06; Combine also recognizes parts made by Linux split.
 
