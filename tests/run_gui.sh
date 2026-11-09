@@ -211,6 +211,48 @@ else
   echo "SKIP: GUI RAR5 checks ('rar' not installed)"
 fi
 
+# the file managers' menu commands (src/ui/ShellCommand.cpp)
+M="$WORK/menu"
+mkdir -p "$M" && cp -r "$FX/content" "$M/"
+DESC="Menu: Add to \"content.7z\" without a dialog"
+check run --add-7z "$M/content"
+check sh -c "'$SEVENZZ' e -so '$M/content.7z' content/docs/random.bin 2>/dev/null | cmp -s - '$FX/content/docs/random.bin'"
+
+DESC="Menu: Add to \"content.zip\": several items take their folder's name"
+check run --add-zip "$M/content/hello.txt" "$M/content/docs"
+check sh -c "'$SEVENZZ' l '$M/content/content.zip' 2>/dev/null | grep -q 'docs/lorem.txt'"
+
+DESC="Menu: Extract to \"content/\" drops the duplicate folder"
+mkdir -p "$M/x" && cp "$M/content.7z" "$M/x/"
+check run --extract-to "$M/x/content.7z"
+check cmp -s "$M/x/content/docs/random.bin" "$FX/content/docs/random.bin"
+
+DESC="Menu: Extract Here"
+mkdir -p "$M/h" && cp "$M/content.7z" "$M/h/"
+check run --extract-here "$M/h/content.7z"
+check cmp -s "$M/h/content/hello.txt" "$FX/content/hello.txt"
+
+DESC="Menu: Extract files... through the extract dialog"
+mkdir -p "$M/d" && cp "$M/content.7z" "$M/d/"
+check run --keys "Return,@wait" --screenshot "$WORK/m-extract.png" --extract "$M/d/content.7z"
+check cmp -s "$M/d/content/content/hello.txt" "$FX/content/hello.txt"
+
+DESC="Menu: extracting a folder asks for files"
+check run --screenshot "$WORK/m-dir.png" --extract "$M/content"
+check grep -q "select one or more files" "$WORK/m-dir.png.txt"
+
+DESC="Menu: Test archive reports no errors"
+check run --screenshot "$WORK/m-test.png" --test "$M/content.7z"
+check grep -q "There are no errors" "$WORK/m-test.png.txt"
+
+DESC="Menu: SHA-256 -> hello.txt.sha256"
+check run --hash-file "$M/content/hello.txt"
+check sh -c "cd '$M/content' && sha256sum -c --quiet hello.txt.sha256"
+
+DESC="Menu: the CRC SHA result window opens"
+check run --screenshot "$WORK/m-hash.png" --hash SHA256 "$M/content/hello.txt"
+check test -s "$WORK/m-hash.png"
+
 DESC="GUI: temp folders are removed on exit"
 check sh -c "[ -z \"\$(find '$WORK/cache' -mindepth 2 -maxdepth 3 -name '7zO*' 2>/dev/null)\" ]"
 exit $fail

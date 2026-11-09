@@ -30,7 +30,8 @@ prepare() {
 build() {
   cmake -S "$pkgname" -B build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DTHUNAR_ARCHIVE_PLUGIN_DIR=/usr/lib/xfce4/thunar-archive-plugin
   cmake --build build
 }
 

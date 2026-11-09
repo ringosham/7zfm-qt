@@ -1,0 +1,24 @@
+#!/bin/sh
+# 7zfm-qt.tap -- thunar-archive-plugin wrapper: Thunar's "Create Archive",
+# "Extract Here" and "Extract To" with 7zfm-qt, when 7zfm-qt is the
+# preferred application for the archive's type.
+
+# the action and the current folder; "$@" is then only the files
+action=$1; shift
+pwd=$1; shift
+cd "$pwd" || exit 1
+
+case $action in
+create)
+	exec 7zfm-qt --add "$@"
+	;;
+extract-here)
+	exec 7zfm-qt --extract-here "$@"
+	;;
+extract-to)
+	exec 7zfm-qt --extract "$@"
+	;;
+*)
+	echo "Unsupported action '$action'" >&2
+	exit 1
+esac

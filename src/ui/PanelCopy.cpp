@@ -637,8 +637,9 @@ static bool IsItArcExt(const UString &ext)
   return false;
 }
 
-// upstream Explorer/ContextMenu.cpp
-static UString GetSubFolderNameForExtract(const UString &arcName)
+// upstream Explorer/ContextMenu.cpp (also used by ShellCommand.cpp)
+UString GetSubFolderNameForExtract(const UString &arcName);
+UString GetSubFolderNameForExtract(const UString &arcName)
 {
   int dotPos = arcName.ReverseFind_Dot();
   if (dotPos < 0)

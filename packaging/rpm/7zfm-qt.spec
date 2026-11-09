@@ -63,6 +63,18 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_bindir}/%{name}
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
+# co-owned: the file managers that read these may not be installed
+%dir %{_datadir}/kio
+%dir %{_datadir}/kio/servicemenus
+%dir %{_datadir}/nemo
+%dir %{_datadir}/nemo/actions
+%dir %{_datadir}/file-manager
+%dir %{_datadir}/file-manager/actions
+%dir %{_libexecdir}/thunar-archive-plugin
+%{_datadir}/kio/servicemenus/%{name}-*.desktop
+%{_datadir}/nemo/actions/%{name}-*.nemo_action
+%{_datadir}/file-manager/actions/%{name}-*.desktop
+%{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
 * Mon Nov 09 2026 Ringo Sham <ringosham@gmail.com> - 0.2.1-1

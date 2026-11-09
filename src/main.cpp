@@ -10,6 +10,7 @@
 #include "ui/Panel.h"
 #include "ui/UiHooksQt.h"
 #include "ui/DndExtract.h"
+#include "ui/ShellCommand.h"
 #include "FmProgress.h"
 #include "CompressCall.h"
 #include "QtConv.h"
@@ -29,6 +30,7 @@
 #include <QTimer>
 #include <QtTest/QTest>
 
+#include <cstdlib>
 #include <functional>
 #include <memory>
 
@@ -49,17 +51,19 @@ int main(int argc, char *argv[])
     return 1;
   }
 
-  MainWindow w;
-  UiHooksQt hooks(&w);
-  g_UiHooks = &hooks;
-  w.show();
-
   QString start;
   QString screenshot; // development aid: --screenshot FILE grabs the window and quits
   QStringList keys;   // with --screenshot: --keys "Ctrl+PgDown,Down,Return" replays keys first
+  QStringList shellArgs;
   const QStringList args = app.arguments();
   for (int i = 1; i < args.size(); i++)
   {
+    if (IsShellCommand(args[i]))
+    {
+      // the file managers' menu entries (data/menus); the rest are its files
+      shellArgs = args.mid(i);
+      break;
+    }
     if (args[i] == QLatin1String("--screenshot") && i + 1 < args.size())
       screenshot = args[++i];
     else if (args[i] == QLatin1String("--keys") && i + 1 < args.size())
@@ -71,24 +75,39 @@ int main(int argc, char *argv[])
     else if (start.isEmpty())
       start = QFileInfo(args[i]).absoluteFilePath();
   }
-  // open the start path from the event loop: the window appears first, and
-  // a slow open (or its password prompt) runs with the usual progress UI.
-  // Without one, each panel reopens its last folder, like upstream.
-  QTimer::singleShot(0, &w, [&w, start]() { w.OpenStartPaths(start); });
+
+  // a menu command shows only its own dialogs, like upstream's 7zG.exe
+  const bool shellMode = !shellArgs.isEmpty();
+  std::unique_ptr<MainWindow> mainWindow;
+  if (!shellMode)
+    mainWindow = std::make_unique<MainWindow>();
+  MainWindow *const w = mainWindow.get();
+  UiHooksQt hooks(w);
+  g_UiHooks = &hooks;
+  if (w)
+  {
+    w->show();
+    // open the start path from the event loop: the window appears first, and
+    // a slow open (or its password prompt) runs with the usual progress UI.
+    // Without one, each panel reopens its last folder, like upstream.
+    QTimer::singleShot(0, w, [w, start]() { w->OpenStartPaths(start); });
+  }
 
   if (!screenshot.isEmpty())
   {
     // replay keys one by one (so modal dialogs can receive them), then grab
     // the active window
     auto step = std::make_shared<std::function<void(int)>>();
-    *step = [&w, screenshot, keys, step](int i) {
+    *step = [w, shellMode, screenshot, keys, step](int i) {
       if (i < keys.size())
       {
         // schedule the next step first: this key may open a modal dialog
         QTimer::singleShot(400, qApp, [step, i]() { (*step)(i + 1); });
         if (keys[i].startsWith(QLatin1String("@select:")))
         {
-          w.GetPanel()->SelectByName(keys[i].mid(8));
+          if (!w)
+            return;
+          w->GetPanel()->SelectByName(keys[i].mid(8));
           return;
         }
         if (keys[i] == QLatin1String("@wait"))
@@ -106,27 +125,29 @@ int main(int argc, char *argv[])
         }
         if (keys[i].startsWith(QLatin1String("@action:")))
         {
+          if (!w)
+            return;
           const QString a = keys[i].mid(8);
-          if (a == QLatin1String("extract")) w.GetPanel()->ExtractArchives();
-          else if (a == QLatin1String("add")) w.GetPanel()->AddToArchive();
-          else if (a == QLatin1String("split")) w.GetPanel()->Split();
-          else if (a.startsWith(QLatin1String("hash:"))) w.GetPanel()->CalculateCrc(qstrdup(a.mid(5).toLatin1().constData()));
+          if (a == QLatin1String("extract")) w->GetPanel()->ExtractArchives();
+          else if (a == QLatin1String("add")) w->GetPanel()->AddToArchive();
+          else if (a == QLatin1String("split")) w->GetPanel()->Split();
+          else if (a.startsWith(QLatin1String("hash:"))) w->GetPanel()->CalculateCrc(qstrdup(a.mid(5).toLatin1().constData()));
           else if (a == QLatin1String("benchmark")) Benchmark(false);
-          else if (a == QLatin1String("copy")) w.OnCopy(false, false);
-          else if (a == QLatin1String("move")) w.OnCopy(true, false);
-          else if (a == QLatin1String("flat")) w.GetPanel()->SetFlatMode(true);
+          else if (a == QLatin1String("copy")) w->OnCopy(false, false);
+          else if (a == QLatin1String("move")) w->OnCopy(true, false);
+          else if (a == QLatin1String("flat")) w->GetPanel()->SetFlatMode(true);
           else if (a == QLatin1String("options")) { extern bool OptionsDialog(); OptionsDialog(); }
-          else if (a == QLatin1String("combine")) w.GetPanel()->Combine();
-          else if (a.startsWith(QLatin1String("rename:"))) w.GetPanel()->RenameFocused(a.mid(7));
-          else if (a.startsWith(QLatin1String("drop:"))) w.GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);
-          else if (a == QLatin1String("test")) w.GetPanel()->TestArchives();
-          else if (a == QLatin1String("properties")) w.GetPanel()->Properties();
+          else if (a == QLatin1String("combine")) w->GetPanel()->Combine();
+          else if (a.startsWith(QLatin1String("rename:"))) w->GetPanel()->RenameFocused(a.mid(7));
+          else if (a.startsWith(QLatin1String("drop:"))) w->GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);
+          else if (a == QLatin1String("test")) w->GetPanel()->TestArchives();
+          else if (a == QLatin1String("properties")) w->GetPanel()->Properties();
           else if (a.startsWith(QLatin1String("dnd:")))
           {
             // a drop on Dolphin: KIO's DropJob calls the Ark DnD object
-            std::unique_ptr<QMimeData> mime(w.GetPanel()->CreateDragData());
+            std::unique_ptr<QMimeData> mime(w->GetPanel()->CreateDragData());
             // nothing may be extracted before the drop
-            if (mime && !w.GetPanel()->DragItemsExtracted()
+            if (mime && !w->GetPanel()->DragItemsExtracted()
                 && mime->hasFormat(QLatin1String(DndExtract::ServiceMimeType())))
             {
               QDBusMessage m = QDBusMessage::createMethodCall(
@@ -140,8 +161,8 @@ int main(int argc, char *argv[])
           else if (a.startsWith(QLatin1String("dnduri:")))
           {
             // a drop on a target that reads the URLs: extracted on request
-            std::unique_ptr<QMimeData> mime(w.GetPanel()->CreateDragData());
-            if (mime && !w.GetPanel()->DragItemsExtracted())
+            std::unique_ptr<QMimeData> mime(w->GetPanel()->CreateDragData());
+            if (mime && !w->GetPanel()->DragItemsExtracted())
               for (const QUrl &u : mime->urls())
                 QFile::copy(u.toLocalFile(), a.mid(7) + QLatin1Char('/') + u.fileName());
           }
@@ -156,7 +177,11 @@ int main(int argc, char *argv[])
           if (QWidget *modal = QApplication::activeModalWidget())
             target = modal->focusWidget() ? modal->focusWidget() : modal;
           if (!target)
-            target = QApplication::focusWidget() ? QApplication::focusWidget() : &w;
+            target = QApplication::focusWidget() ? QApplication::focusWidget() : w;
+          if (!target)
+            target = QApplication::activeWindow();
+          if (!target)
+            return;
           // QTest goes through shortcut processing like a real key press
           QTest::keyClick(target, kc.key(), kc.keyboardModifiers());
         }
@@ -164,10 +189,11 @@ int main(int argc, char *argv[])
       }
       QWidget *top = QApplication::activeModalWidget();
       if (!top)
-        top = &w;
-      top->grab().save(screenshot);
+        top = w ? static_cast<QWidget *>(w) : QApplication::activeWindow();
+      if (top)
+        top->grab().save(screenshot);
       // and the text of an open dialog, for tests to check messages
-      if (top != &w)
+      if (top && top != w)
       {
         QFile f(screenshot + QStringLiteral(".txt"));
         if (f.open(QIODevice::WriteOnly))
@@ -175,9 +201,19 @@ int main(int argc, char *argv[])
             if (l->isVisible() && !l->text().isEmpty())
               f.write((l->text() + QLatin1Char('\n')).toUtf8());
       }
+      // a menu command's dialog runs its own event loop: leave from inside it
+      if (shellMode)
+        std::_Exit(0);
       QApplication::exit(0);
     };
     QTimer::singleShot(300, qApp, [step]() { (*step)(0); });
+  }
+  if (shellMode)
+  {
+    int exitCode = 0;
+    RunShellCommand(shellArgs, exitCode);
+    g_UiHooks = nullptr;
+    return exitCode;
   }
   return app.exec();
 }

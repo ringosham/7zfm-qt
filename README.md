@@ -18,6 +18,12 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
 - This port builds 7-Zip as a library just like the Windows version. You can now directly open them at zero waiting time.
 
+**File manager menus**
+- The packages add 7-Zip's Explorer context menu to Dolphin, Nemo, PCManFM-Qt and Caja (with caja-actions). It has a "7-Zip" submenu (Open archive, Extract files..., Extract Here, Extract to, Test archive, Add to archive..., Add to .7z/.zip) and a "CRC SHA" submenu.
+- Thunar gets Create Archive / Extract Here / Extract To through thunar-archive-plugin when 7zfm-qt is the preferred application for the archive type.
+- Each entry runs a command-line mode that shows only that command's own dialogs, as upstream's menu does with `7zG.exe`: `7zfm-qt --extract | --extract-here | --extract-to | --test | --add | --add-7z | --add-zip | --hash METHOD | --hash-file FILES...` (see `src/ui/ShellCommand.h`).
+- Nautilus is not covered; it only takes Python or C extensions.
+
 ## Build
 
 ```sh
