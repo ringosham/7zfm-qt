@@ -65,6 +65,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 
 %changelog
+* Mon Nov 09 2026 Ringo Sham <ringosham@gmail.com> - 0.2.1-1
+- 7-Zip 26.06; Combine also recognizes parts made by Linux split.
+
 * Sun Nov 01 2026 Ringo Sham <ringosham@gmail.com> - 0.2.0-1
 - 7-Zip's assembly LZMA decoder (built with uasm on x86_64).
 
