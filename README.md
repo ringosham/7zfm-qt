@@ -5,7 +5,7 @@ A Qt 6 native port of the Windows 7-Zip File Manager (7zFM) for Linux purely for
 > [!CAUTION]
 > Fully vibecoded software with minimal review. Do not use in production. While this is based on upstream 7-Zip, we cannot guarantee any security issues or maintenance will be addressed on the frontend side. Use at your own risk.
 
-It uses upstream 7-Zip 26.05 unmodified, and as much of upstream's own GUI code as possible.
+It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code as possible.
 
 ## Why?
 
