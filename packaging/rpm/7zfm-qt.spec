@@ -79,6 +79,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Tue Nov 10 2026 Ringo Sham <ringosham@gmail.com> - 0.4.0-1
+- Compressed tar in one step: tgz, tbz2, txz and tzst (libzstd).
+
 * Tue Nov 10 2026 Ringo Sham <ringosham@gmail.com> - 0.3.1-1
 - 7zG command line, a man page, and full-width overwrite dialog buttons.
 
