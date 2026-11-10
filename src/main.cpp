@@ -11,6 +11,7 @@
 #include "ui/UiHooksQt.h"
 #include "ui/DndExtract.h"
 #include "ui/ShellCommand.h"
+#include "SevenZipG.h"
 #include "FmProgress.h"
 #include "CompressCall.h"
 #include "QtConv.h"
@@ -55,12 +56,15 @@ int main(int argc, char *argv[])
   QString screenshot; // development aid: --screenshot FILE grabs the window and quits
   QStringList keys;   // with --screenshot: --keys "Ctrl+PgDown,Down,Return" replays keys first
   QStringList shellArgs;
+  bool sevenZipG = false;
   const QStringList args = app.arguments();
   for (int i = 1; i < args.size(); i++)
   {
-    if (IsShellCommand(args[i]))
+    // "7zfm-qt x archive.7z -o...": 7zG's command line (gui/GUI.cpp)
+    sevenZipG = Is7zGCommand(ToU(args[i]));
+    if (sevenZipG || IsShellCommand(args[i]))
     {
-      // the file managers' menu entries (data/menus); the rest are its files
+      // or one of the file managers' menu entries (data/menus)
       shellArgs = args.mid(i);
       break;
     }
@@ -76,7 +80,7 @@ int main(int argc, char *argv[])
       start = QFileInfo(args[i]).absoluteFilePath();
   }
 
-  // a menu command shows only its own dialogs, like upstream's 7zG.exe
+  // a 7zG or menu command shows only its own dialogs, like upstream's 7zG.exe
   const bool shellMode = !shellArgs.isEmpty();
   std::unique_ptr<MainWindow> mainWindow;
   if (!shellMode)
@@ -211,7 +215,15 @@ int main(int argc, char *argv[])
   if (shellMode)
   {
     int exitCode = 0;
-    RunShellCommand(shellArgs, exitCode);
+    if (sevenZipG)
+    {
+      UStringVector commandStrings;
+      for (const QString &a : shellArgs)
+        commandStrings.Add(ToU(a));
+      exitCode = Run7zG(commandStrings);
+    }
+    else
+      RunShellCommand(shellArgs, exitCode);
     g_UiHooks = nullptr;
     return exitCode;
   }

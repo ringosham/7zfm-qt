@@ -211,6 +211,31 @@ else
   echo "SKIP: GUI RAR5 checks ('rar' not installed)"
 fi
 
+# 7zG's command line (src/gui/GUI.cpp)
+G="$WORK/7zg"
+mkdir -p "$G" && cp -r "$FX/content" "$G/"
+DESC="7zG: a creates an archive without a dialog"
+check run a "$G/g.7z" "$G/content"
+check sh -c "'$SEVENZZ' e -so '$G/g.7z' content/docs/random.bin 2>/dev/null | cmp -s - '$FX/content/docs/random.bin'"
+
+DESC="7zG: x -o extracts, -y overwrites without asking"
+check run x "$G/g.7z" "-o$G/out"
+check run x "$G/g.7z" "-o$G/out" -y
+check cmp -s "$G/out/content/docs/random.bin" "$FX/content/docs/random.bin"
+
+DESC="7zG: x -an -ai! -o*/ extracts several archives into their own folders"
+cp "$G/g.7z" "$G/g2.7z"
+check run x -an "-ai!$G/g.7z" "-ai!$G/g2.7z" "-o$G/multi/*"
+check cmp -s "$G/multi/g2/content/hello.txt" "$FX/content/hello.txt"
+
+DESC="7zG: t reports no errors"
+check run --screenshot "$WORK/g-test.png" t "$G/g.7z"
+check grep -q "There are no errors" "$WORK/g-test.png.txt"
+
+DESC="7zG: a missing archive name is reported as 7zG reports it"
+check run --screenshot "$WORK/g-noname.png" a
+check grep -q "Cannot find archive name" "$WORK/g-noname.png.txt"
+
 # the file managers' menu commands (src/ui/ShellCommand.cpp)
 M="$WORK/menu"
 mkdir -p "$M" && cp -r "$FX/content" "$M/"

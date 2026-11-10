@@ -18,11 +18,20 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
 - This port builds 7-Zip as a library just like the Windows version. You can now directly open them at zero waiting time.
 
-**File manager menus**
-- The packages add 7-Zip's Explorer context menu to Dolphin, Nemo, PCManFM-Qt and Caja (with caja-actions). It has a "7-Zip" submenu (Open archive, Extract files..., Extract Here, Extract to, Test archive, Add to archive..., Add to .7z/.zip) and a "CRC SHA" submenu.
-- Thunar gets Create Archive / Extract Here / Extract To through thunar-archive-plugin when 7zfm-qt is the preferred application for the archive type.
-- Each entry runs a command-line mode that shows only that command's own dialogs, as upstream's menu does with `7zG.exe`: `7zfm-qt --extract | --extract-here | --extract-to | --test | --add | --add-7z | --add-zip | --hash METHOD | --hash-file FILES...` (see `src/ui/ShellCommand.h`).
-- Nautilus is not covered; it only takes Python or C extensions.
+**File manager integrations**
+- The same context menu entries from Windows are ported after to most major Linux file managers, so you can right click on an archive and extract it without opening the GUI.
+- Supported file managers as follows:
+    - Dolphin
+    - Nemo
+    - PCManFM (Restart required)
+    - Caja (Requires `caja-actions`)
+    - Thunar (Requires `thunar-archive-plugin`)
+- Nautilus is not supported as this package does not build the extensnion.
+
+**Command line options**
+- `7zfm-qt <command> [switches] ...` takes 7-Zip's own command line, as `7zG` does: the commands and switches of `7z` (`a`, `u`, `d`, `x`, `e`, `t`, `h`, `b`), with dialogs and progress windows instead of console output. For example `7zfm-qt x archive.7z -o/tmp/out`, `7zfm-qt a -ad backup.7z ~/docs` (the Add to Archive dialog) or `7zfm-qt h -scrcSHA256 file.iso`.
+- Anything else opens the file manager at that path; a file actually named `a`, `x`, ... needs `./a`.
+- The menu entries call `7zfm-qt --extract | --extract-here | --extract-to | --test | --add | --add-7z | --add-zip | --hash METHOD | --hash-file FILES...` instead (see `src/ui/ShellCommand.h`). They need folder and archive names worked out from the selection (`Extract to "name/"`, `Add to "name.7z"`), which a static menu file can't express in 7z syntax; upstream's Explorer menu also works them out itself before it starts `7zG`.
 
 ## Build
 

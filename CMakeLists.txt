@@ -150,6 +150,7 @@ set(UPDATE_GUI_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/CopyDialog.cpp
   ${SEVENZIP_DIR}/CPP/7zip/UI/FileManager/SplitDialog.cpp
   src/gui/CompressCall2.cpp
+  src/gui/GUI.cpp
   src/gui/FolderOps.cpp
   src/gui/PanelSplitFile.cpp
   src/gui/PanelCrc.cpp
