@@ -1,0 +1,267 @@
+.TH 7ZFM-QT 1 "November 2026" "7zfm-qt" "User Commands"
+.SH NAME
+7zfm-qt \- Qt port of the 7-Zip File Manager and of 7zG
+.SH SYNOPSIS
+.B 7zfm-qt
+.RI [ path ]
+.br
+.B 7zfm-qt
+.I command
+.RI [ switches ...]
+.RI [ archive ]
+.RI [ files ...]
+.br
+.B 7zfm-qt
+.B \-\-extract\fR|\fB\-\-extract\-here\fR|\fB\-\-extract\-to\fR|\fB\-\-test
+.IR archives ...
+.br
+.B 7zfm-qt
+.B \-\-add\fR|\fB\-\-add\-7z\fR|\fB\-\-add\-zip\fR|\fB\-\-hash\-file
+.IR files ...
+.br
+.B 7zfm-qt
+.B \-\-hash
+.I method
+.IR files ...
+.SH DESCRIPTION
+.B 7zfm-qt
+is a port of the Windows 7-Zip File Manager (7zFM) to Qt 6, built on
+upstream 7-Zip as a library. It opens archives, disk images, partitions and
+file systems by their signature rather than their extension, and opens
+nested ones in place, without extracting them first.
+.PP
+With no arguments, or with a
+.IR path ,
+it opens the file manager there: a folder, or an archive or image to browse.
+Without a path, each panel reopens the folder it showed last.
+.PP
+With a 7-Zip
+.I command
+as the first argument, it works as upstream's
+.BR 7zG :
+it takes the command line of
+.BR 7z (1),
+runs the command with 7-Zip's dialogs and progress window instead of console
+output, and exits. The file manager window is not shown. A file whose name is
+one of the command letters is opened with a path, as in
+.BR "7zfm-qt ./x" .
+.SH COMMANDS
+These are the commands of
+.BR 7zG ;
+letters are accepted in either case.
+.TP
+.B a
+Add files to an archive, creating it if needed.
+.TP
+.B u
+Update files in an archive.
+.TP
+.B d
+Delete files from an archive.
+.TP
+.B e
+Extract files without their paths, into one folder.
+.TP
+.B x
+Extract files with their full paths.
+.TP
+.B t
+Test the integrity of archives.
+.TP
+.B h
+Calculate checksums of files (CRC32 by default; see
+.BR \-scrc ).
+.TP
+.B b
+Run the benchmark.
+.SH SWITCHES
+Every switch of
+.BR 7z (1)
+is accepted and means the same. The most used ones:
+.TP
+.B \-ad
+Show the dialog first: the Extract dialog for
+.B e
+and
+.BR x ,
+the Add to Archive dialog for
+.BR a .
+This switch exists only in
+.BR 7zG .
+.TP
+.BI \-o dir
+Extract into
+.IR dir .
+A
+.B *
+in
+.I dir
+is replaced with the archive's name without its extension, so
+.B \-o*
+extracts each archive into a folder of its own name.
+.TP
+.B \-spe
+Eliminate the duplicate root folder: when the archive holds a single folder
+with the output folder's name, extract its contents directly.
+.TP
+.BI \-t type
+Archive type, such as
+.BR 7z ,
+.BR zip ,
+.B tar
+or
+.BR iso .
+.TP
+.BI \-m ...
+Compression method and its parameters, such as
+.B \-mx=9
+or
+.BR \-m0=lzma2 .
+.TP
+.BI \-p password
+Use
+.IR password .
+Without
+.IR password ,
+it is asked for in a dialog.
+.TP
+.B \-r
+Recurse into subfolders.
+.TP
+.BR \-i ", " \-x
+Include or exclude files by name or wildcard, as in
+.BR 7z (1).
+.TP
+.B \-an \-ai!\fIarchive\fR ...
+Take the archive names from
+.B \-ai
+switches instead of the first file argument, so that one
+.B x
+or
+.B t
+command handles several archives.
+.TP
+.BI \-scrc method
+Checksum method for
+.BR h :
+.BR CRC32 ,
+.BR CRC64 ,
+.BR XXH64 ,
+.BR MD5 ,
+.BR SHA1 ,
+.BR SHA256 ,
+.BR SHA384 ,
+.BR SHA512 ,
+.BR SHA3\-256 ,
+.BR BLAKE2sp ,
+or
+.B *
+for all of them.
+.TP
+.BI \-v size
+Create volumes of
+.IR size ,
+such as
+.BR \-v100m .
+.TP
+.B \-y
+Assume Yes on all questions, such as replacing files.
+.SH MENU COMMANDS
+The context-menu entries that the packages install for
+.BR dolphin (1),
+.BR nemo (1),
+.BR pcmanfm\-qt (1),
+.BR caja (1)
+(with caja-actions) and
+.BR thunar (1)
+(with thunar-archive-plugin) run these instead of a 7-Zip command line. They
+work out folder and archive names from the selection, as the Explorer menu of
+7-Zip on Windows does, which a static menu file cannot express in
+.BR 7z (1)
+syntax. Each file is a separate argument.
+.TP
+.B \-\-extract
+Extract files...: the Extract dialog, set to a folder named after the
+archive, or to
+.B */
+for several archives.
+.TP
+.B \-\-extract\-here
+Extract Here: into the archive's folder.
+.TP
+.B \-\-extract\-to
+Extract to "\fIname\fR/": into a folder named after the archive, next to it,
+eliminating the duplicate root folder as
+.B \-spe
+does.
+.TP
+.B \-\-test
+Test archive.
+.TP
+.B \-\-add
+Add to archive...: the Add to Archive dialog, with the archive named after
+the file, or after its folder for several files.
+.TP
+.BR \-\-add\-7z ", " \-\-add\-zip
+Add to "\fIname\fR.7z" or "\fIname\fR.zip", without a dialog.
+.TP
+.BI \-\-hash " method"
+CRC SHA: show the checksums of the files and folders, with
+.I method
+as for
+.BR \-scrc .
+.TP
+.B \-\-hash\-file
+CRC SHA > SHA-256 -> \fIname\fR.sha256: write a SHA-256 checksum file next
+to the files.
+.SH EXIT STATUS
+For a 7-Zip command, as
+.BR 7z (1):
+.TP
+.B 0
+No error.
+.TP
+.B 1
+Warning: some files could not be processed.
+.TP
+.B 2
+Fatal error.
+.TP
+.B 7
+Command line error.
+.TP
+.B 8
+Not enough memory.
+.TP
+.B 255
+Stopped by the user.
+.PP
+A menu command exits with 2 when it is given no files or a file that does
+not exist, with 1 when adding fails, and otherwise with 0.
+.SH FILES
+.TP
+.I ~/.config/7zfm-qt/7zfm-qt.conf
+Settings: the options of the Tools menu, the folders the panels show and the
+compression dialog's history, as 7-Zip keeps them in the Windows registry.
+.SH EXAMPLES
+.TP
+.B 7zfm-qt disk.vhdx
+Open a disk image in the file manager.
+.TP
+.B 7zfm-qt x backup.7z \-o/tmp/restore
+Extract an archive with a progress window.
+.TP
+.B 7zfm-qt x \-ad \-an \(aq\-ai!*.zip\(aq \(aq\-o*\(aq
+Choose the options in the Extract dialog, then extract every zip file in the
+current folder into a folder of its own name.
+.TP
+.B 7zfm-qt a \-ad docs.7z ~/Documents
+Open the Add to Archive dialog for a folder.
+.TP
+.B 7zfm-qt h \-scrcSHA256 image.iso
+Show the SHA-256 of a file.
+.SH SEE ALSO
+.BR 7z (1),
+.BR 7zz (1)
+.PP
+https://github.com/ringosham/7zfm-qt

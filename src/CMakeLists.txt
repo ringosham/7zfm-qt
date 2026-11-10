@@ -22,6 +22,7 @@ endif()
 include(GNUInstallDirs)
 install(TARGETS 7zfm-qt RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES ${PROJECT_SOURCE_DIR}/data/7zfm-qt.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES ${PROJECT_SOURCE_DIR}/data/7zfm-qt.1 DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 foreach(size 16 32 48 256)
   install(FILES ${PROJECT_SOURCE_DIR}/data/icons/${size}.png
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}x${size}/apps RENAME 7zfm-qt.png)

@@ -61,6 +61,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %license LICENSE external/7zip/DOC/unRarLicense.txt
 %doc README.md
 %{_bindir}/%{name}
+%{_mandir}/man1/%{name}.1*
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{name}.*
 # co-owned: the file managers that read these may not be installed
