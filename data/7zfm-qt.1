@@ -111,6 +111,18 @@ Archive type, such as
 .B tar
 or
 .BR iso .
+For a compressed tar in one step:
+.B tgz
+(.tar.gz),
+.B tbz2
+(.tar.bz2),
+.B txz
+(.tar.xz) or
+.B tzst
+(.tar.zst). The archive's name alone doesn't pick these:
+.B "a x.tar.gz"
+is gzip around a single file, as in
+.BR 7z (1).
 .TP
 .BI \-m ...
 Compression method and its parameters, such as
@@ -257,6 +269,9 @@ current folder into a folder of its own name.
 .TP
 .B 7zfm-qt a \-ad docs.7z ~/Documents
 Open the Add to Archive dialog for a folder.
+.TP
+.B 7zfm-qt a \-ttxz \-mx=9 src.tar.xz ~/src
+Compress a folder into a .tar.xz.
 .TP
 .B 7zfm-qt h \-scrcSHA256 image.iso
 Show the SHA-256 of a file.

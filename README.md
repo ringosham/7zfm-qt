@@ -18,6 +18,10 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
 - This port builds 7-Zip as a library just like the Windows version. You can now directly open them at zero waiting time.
 
+**Compressed tar in one step**
+- Upstream 7-Zip compresses to gz, bz2 and xz only one file at a time, so a folder needs a tar first. Here the Add to Archive dialog and `-t` also offer `tgz` (.tar.gz), `tbz2` (.tar.bz2), `txz` (.tar.xz) and `tzst` (.tar.zst), which do both in one pass, and can add to or update an existing one.
+- gz, bz2 and xz use 7-Zip's own encoders. zstd uses the system libzstd, as upstream doesn't release its zstd encoder.
+
 **File manager integrations**
 - The same context menu entries from Windows are ported after to most major Linux file managers, so you can right click on an archive and extract it without opening the GUI.
 - Supported file managers as follows:

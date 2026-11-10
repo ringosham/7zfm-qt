@@ -236,6 +236,20 @@ DESC="7zG: a missing archive name is reported as 7zG reports it"
 check run --screenshot "$WORK/g-noname.png" a
 check grep -q "Cannot find archive name" "$WORK/g-noname.png.txt"
 
+# compressed tar in one step (src/formats/TarCompound.cpp), read back with
+# upstream's 7zz and tar
+for t in tgz tbz2 txz tzst; do
+  DESC="7zG: a -t$t creates a compressed tar"
+  check run a -t$t "$G/c" "$G/content"
+  check sh -c "'$SEVENZZ' e -so '$G'/c.tar.* 2>/dev/null | tar -xOf - content/docs/random.bin | cmp -s - '$FX/content/docs/random.bin'"
+  DESC="7zG: a -t$t adds to an existing compressed tar"
+  printf 'added\n' > "$G/added.txt"
+  check run a -t$t "$G/c" "$G/added.txt"
+  check sh -c "'$SEVENZZ' e -so '$G'/c.tar.* 2>/dev/null | tar -tf - | grep -qx added.txt"
+  check sh -c "'$SEVENZZ' e -so '$G'/c.tar.* 2>/dev/null | tar -xOf - content/hello.txt | cmp -s - '$FX/content/hello.txt'"
+  rm -f "$G"/c.tar.* "$G/added.txt"
+done
+
 # the file managers' menu commands (src/ui/ShellCommand.cpp)
 M="$WORK/menu"
 mkdir -p "$M" && cp -r "$FX/content" "$M/"

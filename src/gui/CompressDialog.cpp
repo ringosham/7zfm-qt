@@ -315,6 +315,32 @@ static const CFormatInfo g_Formats[] =
     METHODS_PAIR(g_XzMethods),
     kFF_Solid | kFF_MultiThread | kFF_MemUse
   },
+  // 7zfm-qt: compressed tar in one step (src/formats/TarCompound.cpp), with
+  // the levels and methods of GZip, BZip2 and xz above; zstd from libzstd
+  {
+    "tgz",
+    (1 << 1) | (1 << 5) | (1 << 7) | (1 << 9),
+    METHODS_PAIR(g_GZipMethods),
+    kFF_MemUse
+  },
+  {
+    "tbz2",
+    (1 << 1) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 9),
+    METHODS_PAIR(g_BZip2Methods),
+    kFF_MultiThread | kFF_MemUse
+  },
+  {
+    "txz",
+    (1 << 10) - 1 - (1 << 0),
+    METHODS_PAIR(g_XzMethods),
+    kFF_MultiThread | kFF_MemUse
+  },
+  {
+    "tzst",
+    (1 << 1) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 9),
+    0, NULL,
+    kFF_MultiThread
+  },
   /*
   {
     "zstd",
@@ -1453,7 +1479,9 @@ void CCompressDialog::SetArchiveName2(bool prevWasSFX)
   UString fileName;
   m_ArchivePath.GetText(fileName);
   const CArcInfoEx &prevArchiverInfo = (*ArcFormats)[m_PrevFormat];
-  if (prevArchiverInfo.Flags_KeepName() || Info.KeepName)
+  if (prevArchiverInfo.Flags_KeepName() || Info.KeepName
+      // 7zfm-qt: a compressed tar's extension has a dot ("tar.gz")
+      || prevArchiverInfo.GetMainExt().Find(L'.') >= 0)
   {
     UString prevExtension;
     if (prevWasSFX)
@@ -1487,11 +1515,32 @@ void CCompressDialog::SetArchiveName(const UString &name)
   }
   else
   {
+    // 7zfm-qt: a compressed tar's extension has a dot ("tar.gz"), which
+    // dropping the last extension (or keeping the name) doesn't handle
+    const UString mainExt = ai.GetMainExt();
+    const int extDot = mainExt.Find(L'.');
+    if (extDot > 0)
+    {
+      UString full ('.');
+      full += mainExt;
+      if (fileName.Len() > full.Len()
+          && StringsAreEqualNoCase(fileName.RightPtr(full.Len()), full))
+        fileName.DeleteFrom(fileName.Len() - full.Len());
+    }
     if (!Info.KeepName)
     {
       int dotPos = GetExtDotPos(fileName);
       if (dotPos >= 0)
         fileName.DeleteFrom(dotPos);
+      // 7zfm-qt: and "x.tar.gz" for "tar.gz" leaves "x.tar" here
+      if (extDot > 0)
+      {
+        UString first ('.');
+        first += mainExt.Left((unsigned)extDot);
+        if (fileName.Len() > first.Len()
+            && StringsAreEqualNoCase(fileName.RightPtr(first.Len()), first))
+          fileName.DeleteFrom(fileName.Len() - first.Len());
+      }
     }
   }
 

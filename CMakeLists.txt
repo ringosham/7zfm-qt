@@ -49,6 +49,7 @@ add_library(7zcore OBJECT
   ${SEVENZIP_SETTINGS_SOURCES}
   src/core/Guids.cpp
   src/core/Seams.cpp
+  src/formats/TarCompound.cpp
 )
 # Same defines as upstream 7zip_gcc.mak (formats linked statically, no
 # Z7_EXTERNAL_CODECS, RAR enabled).
@@ -99,7 +100,10 @@ else()
   message(STATUS "LZMA decoder: C (on x86_64, install uasm for the faster one)")
 endif()
 find_package(Threads REQUIRED)
-target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads ${CMAKE_DL_LIBS})
+# zstd compression (src/formats/TarCompound.cpp): upstream ships only the decoder
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads PkgConfig::ZSTD ${CMAKE_DL_LIBS})
 
 # ---- fmlogic: FileManager logic (ported in src/fm, plus upstream files that
 # compile unchanged), no widgets ----

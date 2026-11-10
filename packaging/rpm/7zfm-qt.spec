@@ -17,6 +17,7 @@ BuildRequires:  desktop-file-utils
 BuildRequires:  gcc-c++
 BuildRequires:  libxcb-devel
 BuildRequires:  ninja-build
+BuildRequires:  pkgconfig(libzstd)
 BuildRequires:  python3
 BuildRequires:  qt6-qtbase-devel >= 6.5
 %if %{with check}
