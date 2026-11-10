@@ -94,7 +94,11 @@ EOverwriteAnswer RunOverwriteDialog(QWidget *parent, const COverwriteFileInfo &o
   add(Lq(IDB_AUTO_RENAME, "A&uto Rename"), kOverwrite_AutoRename, QDialogButtonBox::ActionRole);
   add(QObject::tr("Cancel"), kOverwrite_Cancel, QDialogButtonBox::RejectRole);
   lay->addWidget(buttons);
-  d.setMinimumWidth(520);
+  // at least 520 wide, but never narrower than the layout: a minimum width
+  // set on the dialog would replace the layout's own, and squeeze the
+  // six buttons below their labels
+  lay->setSizeConstraint(QLayout::SetMinimumSize);
+  d.resize(qMax(520, d.sizeHint().width()), d.sizeHint().height());
   if (d.exec() == 0)
     return kOverwrite_Cancel;
   return answer;

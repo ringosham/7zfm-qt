@@ -41,7 +41,9 @@ PasswordDialog::PasswordDialog(QWidget *parent): QDialog(parent)
   lay->addWidget(_edit);
   lay->addWidget(_show);
   lay->addWidget(buttons);
-  setMinimumWidth(360);
+  // a minimum width on the dialog would replace the layout's own
+  lay->setSizeConstraint(QLayout::SetMinimumSize);
+  resize(qMax(360, sizeHint().width()), sizeHint().height());
 }
 
 QString PasswordDialog::Password() const { return _edit->text(); }
