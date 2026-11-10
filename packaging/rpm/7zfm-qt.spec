@@ -78,6 +78,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Tue Nov 10 2026 Ringo Sham <ringosham@gmail.com> - 0.3.1-1
+- 7zG command line, a man page, and full-width overwrite dialog buttons.
+
 * Mon Nov 09 2026 Ringo Sham <ringosham@gmail.com> - 0.3.0-1
 - 7-Zip context menus for Dolphin, Nemo, PCManFM-Qt, Caja and Thunar.
 
