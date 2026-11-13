@@ -21,6 +21,7 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 **Compressed tar in one step**
 - Upstream 7-Zip compresses to gz, bz2 and xz only one file at a time, so a folder needs a tar first. Here the Add to Archive dialog and `-t` also offer `tgz` (.tar.gz), `tbz2` (.tar.bz2), `txz` (.tar.xz) and `tzst` (.tar.zst), which do both in one pass, and can add to or update an existing one.
 - gz, bz2 and xz use 7-Zip's own encoders. zstd uses the system libzstd, as upstream doesn't release its zstd encoder.
+- Opening a .tar.gz, .tar.bz2, .tar.xz, .tar.zst, .tar.Z or .tar.lzma shows the tar's contents right away, instead of the single .tar inside (which 7-Zip has to decompress first anyway); Up leaves both. Changes made in the tar are offered back to the compressed file when you leave it.
 
 **File manager integrations**
 - The same context menu entries from Windows are ported after to most major Linux file managers, so you can right click on an archive and extract it without opening the GUI.

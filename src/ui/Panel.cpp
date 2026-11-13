@@ -12,6 +12,7 @@
 #include "Windows/PropVariant.h"
 #include "Windows/PropVariantConv.h"
 #include "Windows/System.h"
+#include "Windows/TimeUtils.h"
 
 #include "7zip/PropID.h"
 #include "7zip/Archive/IArchive.h"
@@ -24,6 +25,7 @@
 #include "7zip/Common/StreamObjects.h"
 
 #include "ExtractCallback.h"
+#include "FolderOps.h"
 
 #include "DesktopLaunch.h"
 #include "DndExtract.h"
@@ -242,6 +244,7 @@ Panel::~Panel()
   SaveListViewInfo();
   _needSaveInfo = false;
   _model->Clear();
+  _destroying = true;
   CloseOpenFolders();
   delete _ui;
 }
@@ -548,7 +551,8 @@ HRESULT Panel::BindToPath(const UString &fullPath, const UString &arcFormat, COp
 // "/x/disk.vhdx/1.linux.img/home" works like navigating there by hand.
 HRESULT Panel::BindToNestedPath(UString &path)
 {
-  for (unsigned curPos = 0; curPos != path.Len();)
+  unsigned curPos = 0;
+  for (; curPos != path.Len();)
   {
     UString s = path.Ptr(curPos);
     const int slashPos = NName::FindSepar(s);
@@ -594,7 +598,16 @@ HRESULT Panel::BindToNestedPath(UString &path)
     if (subSeqStream)
       subSeqStream.QueryInterface(IID_IInStream, &subStream);
     if (!subStream)
+    {
+      // the tar of a .tar.gz etc. has no in-place stream: it is extracted,
+      // as when it is opened by hand
+      if (OpenInnerTar())
+      {
+        curPos += skipLen;
+        continue;
+      }
       break;
+    }
     LoadFullPath();
     CTempFileInfo tfi;
     tfi.FileIndex = index;
@@ -604,6 +617,9 @@ HRESULT Panel::BindToNestedPath(UString &path)
       break;
     curPos += skipLen;
   }
+  // a path that ends at a .tar.gz etc. shows its tar's contents
+  if (curPos == path.Len())
+    OpenInnerTar();
   return S_OK;
 }
 
@@ -699,12 +715,25 @@ void Panel::OpenParentFolder()
     bool needSetFolder = true;
     if (!_parentFolders.isEmpty())
     {
+      bool innerTar;
       {
         const CFolderLink &link = _parentFolders.back();
         parentFolderPrefix = link.ParentFolderPath;
         focusedName = link.RelPath;
+        innerTar = link.InnerTar;
       }
       CloseOneLevel();
+      // 7zfm-qt: the .tar.gz etc. was never shown with its single .tar:
+      // leave it too
+      if (innerTar && !_parentFolders.isEmpty())
+      {
+        {
+          const CFolderLink &link = _parentFolders.back();
+          parentFolderPrefix = link.ParentFolderPath;
+          focusedName = link.RelPath;
+        }
+        CloseOneLevel();
+      }
       needSetFolder = (!_folder);
     }
 
@@ -729,10 +758,92 @@ void Panel::CloseOneLevel()
     CFolderLink &link = _parentFolders.back();
     if (link.ParentFolder)
       SetNewFolder(link.ParentFolder);
+    AskWriteBack(link);
   }
-  // upstream OpenParentArchiveFolder() would offer to write back an edited
-  // temp file here (phase 3)
   _parentFolders.removeLast();
+}
+
+// upstream OpenParentArchiveFolder(): a nested archive that was extracted to
+// a temp file and changed there (items added, deleted, renamed) is offered
+// back to the archive it came from. Upstream asks only on Up; here leaving
+// it any way asks, except when the panel goes away.
+void Panel::AskWriteBack(const CFolderLink &link)
+{
+  if (_destroying || link.IsVirtual || !link.NeedDelete || !link.ParentFolder
+      || link.FileIndex == (UInt32)(Int32)-1)
+    return;
+  NFind::CFileInfo newFileInfo;
+  if (!newFileInfo.Find(link.FilePath))
+    return;
+  if (newFileInfo.Size == link.FileInfo.Size
+      && Compare_FiTime(&newFileInfo.MTime, &link.FileInfo.MTime) == 0)
+    return;
+  const UString message = MyFormatNew(IDS_WANT_UPDATE_MODIFIED_FILE, link.RelPath);
+  if (QMessageBox::question(this, QStringLiteral("7-Zip"), ToQ(message),
+      QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+    return;
+  CMyComPtr<IFolderOperations> ops;
+  link.ParentFolder.QueryInterface(IID_IFolderOperations, &ops);
+  if (!ops)
+  {
+    MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+    return;
+  }
+  // the parent archive's password: the level below this one
+  CFolderOpPassword pw;
+  if (_parentFolders.size() >= 2)
+  {
+    const CFolderLink &parent = _parentFolders[_parentFolders.size() - 2];
+    pw.UsePassword = parent.UsePassword;
+    pw.Password = parent.Password;
+  }
+  const HRESULT res = FolderOp_CopyFromFile(ops, link.FileIndex,
+      fs2us(link.FilePath), link.RelPath, pw);
+  if (res != S_OK && res != E_ABORT)
+    MessageBox_Error(HResultToMessage(res));
+}
+
+// 7zfm-qt: a .tar.gz (.tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma) holds
+// one .tar; its contents are shown right away, by opening that tar as a
+// double-click would. Up leaves both together (OpenParentFolder).
+bool Panel::OpenInnerTar()
+{
+  if (_parentFolders.isEmpty() || !_folder)
+    return false;
+  {
+    NCOM::CPropVariant prop;
+    if (_folder->GetFolderProperty(kpidType, &prop) != S_OK || prop.vt != VT_BSTR)
+      return false;
+    const UString type = prop.bstrVal;
+    static const char * const kCompressors[] =
+      { "7-Zip.gzip", "7-Zip.bzip2", "7-Zip.xz", "7-Zip.zstd", "7-Zip.Z", "7-Zip.lzma" };
+    bool isCompressor = false;
+    for (const char *c : kCompressors)
+      if (type.IsEqualTo_Ascii_NoCase(c))
+        isCompressor = true;
+    if (!isCompressor)
+      return false;
+  }
+  // the archive's root, with its single item
+  if (!GetFolderPath(_folder).IsEmpty())
+    return false;
+  _folder->LoadItems();
+  UInt32 numItems = 0;
+  if (_folder->GetNumberOfItems(&numItems) != S_OK || numItems != 1 || IsItem_Folder(0))
+    return false;
+  const UString name = GetItemName(0);
+  if (name.Len() <= 4 || !StringsAreEqualNoCase_Ascii(name.RightPtr(4), ".tar"))
+    return false;
+
+  LoadFullPath();
+  const int depth = _parentFolders.size();
+  _quietOpenErrors = true;
+  OpenItemInArchive(0, true, false, false, false, L"tar");
+  _quietOpenErrors = false;
+  if (_parentFolders.size() != depth + 1)
+    return false;
+  _parentFolders.back().InnerTar = true;
+  return true;
 }
 
 void Panel::CloseOpenFolders()
@@ -819,6 +930,8 @@ HRESULT Panel::OpenAsArc_Msg(IInStream *inStream,
     return res;
   if (res == E_ABORT)
     return res;
+  if (res == S_FALSE && _quietOpenErrors && !opRes.Encrypted)
+    return res;
 
   if (opRes.Encrypted || res != S_FALSE)
   {
@@ -874,7 +987,13 @@ void Panel::OpenItem(unsigned index, bool tryInternal, bool tryExternal, const w
   if (tryInternal)
   {
     HRESULT res = OpenAsArc_Index(index, type);
-    if (res == S_OK || res == E_ABORT)
+    if (res == S_OK)
+    {
+      if (OpenInnerTar())
+        LoadFullPathAndShow();
+      return;
+    }
+    if (res == E_ABORT)
       return;
     if (res != S_FALSE)
     {
@@ -1001,6 +1120,7 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
           if (res == S_OK)
           {
             RefreshListCtrl();
+            OpenInnerTar();
             return;
           }
           if (res == E_ABORT || res != S_FALSE)
@@ -1105,6 +1225,7 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
       if (res == S_OK)
       {
         RefreshListCtrl();
+        OpenInnerTar();
         return;
       }
       if (res == E_ABORT || res != S_FALSE)
@@ -1124,6 +1245,7 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
     {
       _parentFolders.back().TempDir = tempDirectory;  // keep it while open
       RefreshListCtrl();
+      OpenInnerTar();
       return;
     }
     if (res == E_ABORT || res != S_FALSE)

@@ -146,6 +146,7 @@ int main(int argc, char *argv[])
           else if (a.startsWith(QLatin1String("drop:"))) w->GetPanel()->DropFiles(a.mid(5).split(QLatin1Char(';')), false);
           else if (a == QLatin1String("test")) w->GetPanel()->TestArchives();
           else if (a == QLatin1String("properties")) w->GetPanel()->Properties();
+          else if (a == QLatin1String("up")) w->GetPanel()->OpenParentFolder();
           else if (a.startsWith(QLatin1String("dnd:")))
           {
             // a drop on Dolphin: KIO's DropJob calls the Ark DnD object

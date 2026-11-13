@@ -57,6 +57,7 @@ struct CFolderLink: public CTempFileInfo
   UString Password;
   UString VirtualPath; // without tail slash
   std::shared_ptr<QTemporaryDir> TempDir; // keeps an extracted temp file alive
+  bool InnerTar = false; // 7zfm-qt: the tar of a .tar.gz etc., opened by OpenInnerTar()
 };
 
 class CVirtFileSystem;
@@ -222,6 +223,8 @@ private:
   std::shared_ptr<QTemporaryDir> CreateTempDir();
   bool StartApplication(const UString &path, bool editMode, bool useEditor);
   HRESULT BindToNestedPath(UString &path);
+  bool OpenInnerTar();
+  void AskWriteBack(const CFolderLink &link);
 
   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);
   void GetFilePaths(const CRecordVector<UInt32> &indices, UStringVector &paths, bool allowFolders = false) const;
@@ -299,6 +302,8 @@ private:
   QVector<CExternalEdit> _edits;
   class QFileSystemWatcher *_watcher = nullptr;
   bool _askingWriteBack = false;
+  bool _quietOpenErrors = false; // OpenInnerTar(): not a tar after all is no error
+  bool _destroying = false;
   void WatchExternalEdit(const CExternalEdit &e);
   void OnExternalFileChanged(const QString &path);
   void OnRenameRequested(UInt32 realIndex, const QString &newName);
