@@ -11,6 +11,7 @@
 #include "ui/UiHooksQt.h"
 #include "ui/DndExtract.h"
 #include "ui/ShellCommand.h"
+#include "ui/TempCleanup.h"
 #include "SevenZipG.h"
 #include "FmProgress.h"
 #include "CompressCall.h"
@@ -90,6 +91,8 @@ int main(int argc, char *argv[])
   g_UiHooks = &hooks;
   if (w)
   {
+    // 7zO.* temp folders left by a crashed or killed instance
+    StartTempCleanup();
     w->show();
     // open the start path from the event loop: the window appears first, and
     // a slow open (or its password prompt) runs with the usual progress UI.
