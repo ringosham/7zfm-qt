@@ -79,6 +79,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Fri Nov 13 2026 Ringo Sham <ringosham@gmail.com> - 0.4.2-1
+- Remove 7zO temp folders left by a crashed instance on launch.
+
 * Fri Nov 13 2026 Ringo Sham <ringosham@gmail.com> - 0.4.1-1
 - Compressed tars open at the tar's contents; nested archives in memory are read-only.
 
