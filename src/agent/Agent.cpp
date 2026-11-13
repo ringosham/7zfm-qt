@@ -1254,7 +1254,8 @@ Z7_COM7F_IMF(CAgentFolder::GetFolderProperty(PROPID propID, PROPVARIANT *value))
   if (propID == kpidReadOnly)
   {
     if ((_agentSpec->_proxy && _agentSpec->_proxy->Are_Changed_LongPaths)
-        || _agentSpec->Is_Attrib_ReadOnly())
+        || _agentSpec->Is_Attrib_ReadOnly()
+        || _agentSpec->_isStream) // 7zfm-qt
       prop = true;
     else
       prop = _agentSpec->IsThere_ReadOnlyArc();
@@ -1605,6 +1606,7 @@ CAgent::CAgent():
     _proxy2(NULL),
     _updatePathPrefix_is_AltFolder(false),
     _isDeviceFile(false),
+    _isStream(false),
     _isHashHandler(false),
     _progress_ArchiveOpenCallback_for_Open(NULL),
     _progress_for_Open(NULL)
@@ -1628,6 +1630,8 @@ bool CAgent::CanUpdate() const
     return true;
   if (_isDeviceFile)
     return false;
+  if (_isStream) // 7zfm-qt
+    return false;
   if (_archiveLink.Arcs.Size() != 1)
     return false;
   if (_archiveLink.Arcs[0].ErrorInfo.ThereIsTail)
@@ -1647,6 +1651,7 @@ Z7_COM7F_IMF(CAgent::Open(
   _hashBaseFolderPrefix.Empty();
   _attrib = 0;
   _isDeviceFile = false;
+  _isStream = (inStream != NULL); // 7zfm-qt
   _isHashHandler = false;
   NFile::NFind::CFileInfo fi;
   if (!inStream)

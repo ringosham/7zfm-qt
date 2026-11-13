@@ -244,6 +244,11 @@ public:
   bool _updatePathPrefix_is_AltFolder;
   bool ThereIsPathProp;
   bool _isDeviceFile;
+  // 7zfm-qt: opened from a stream (a nested archive held in memory, or in
+  // place in its parent): there is no file to write an update to. Upstream
+  // goes on to update and then fails in ReOpen(), after it freed the items
+  // that open folders still point to.
+  bool _isStream;
   bool _isHashHandler;
   
   FString _hashBaseFolderPrefix;

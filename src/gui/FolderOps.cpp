@@ -12,6 +12,16 @@
 
 using namespace NWindows;
 
+// 7zfm-qt: an archive that can't be updated (opened from a stream, or of a
+// read-only format) answers E_NOTIMPL; say it as upstream's
+// CheckBeforeUpdate() does, not as "Not implemented"
+static HRESULT ReportNotSupported(HRESULT res)
+{
+  if (res == E_NOTIMPL)
+    throw UString(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
+  return res;
+}
+
 enum EFolderOpType
 {
   FOLDER_TYPE_CREATE_FOLDER = 0,
@@ -41,11 +51,11 @@ HRESULT CThreadFolderOperations::ProcessVirt()
   switch ((int)OpType)
   {
     case FOLDER_TYPE_CREATE_FOLDER:
-      return FolderOperations->CreateFolder(Name, UpdateCallback);
+      return ReportNotSupported(FolderOperations->CreateFolder(Name, UpdateCallback));
     case FOLDER_TYPE_DELETE:
-      return FolderOperations->Delete(Indices.ConstData(), Indices.Size(), UpdateCallback);
+      return ReportNotSupported(FolderOperations->Delete(Indices.ConstData(), Indices.Size(), UpdateCallback));
     case FOLDER_TYPE_RENAME:
-      return FolderOperations->Rename(Index, Name, UpdateCallback);
+      return ReportNotSupported(FolderOperations->Rename(Index, Name, UpdateCallback));
     default:
       return E_FAIL;
   }
@@ -107,12 +117,12 @@ class CThreadUpdate: public CProgressThreadVirt
 {
   HRESULT ProcessVirt() Z7_override
   {
-    return FolderOperations->CopyFrom(
+    return ReportNotSupported(FolderOperations->CopyFrom(
         MoveMode,
         FolderPrefix,
         FileNamePointers.ConstData(),
         FileNamePointers.Size(),
-        UpdateCallback);
+        UpdateCallback));
   }
 public:
   CMyComPtr<IFolderOperations> FolderOperations;
@@ -169,7 +179,7 @@ class CThreadCopyFrom: public CProgressThreadVirt
 {
   HRESULT ProcessVirt() Z7_override
   {
-    return FolderOperations->CopyFromFile(ItemIndex, FullPath, UpdateCallback);
+    return ReportNotSupported(FolderOperations->CopyFromFile(ItemIndex, FullPath, UpdateCallback));
   }
 public:
   UString FullPath;
