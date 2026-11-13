@@ -303,6 +303,7 @@ private:
   class QFileSystemWatcher *_watcher = nullptr;
   bool _askingWriteBack = false;
   bool _quietOpenErrors = false; // OpenInnerTar(): not a tar after all is no error
+  bool _extractNested = false;   // OpenInnerTar(): extract it rather than open it in place
   bool _destroying = false;
   void WatchExternalEdit(const CExternalEdit &e);
   void OnExternalFileChanged(const QString &path);

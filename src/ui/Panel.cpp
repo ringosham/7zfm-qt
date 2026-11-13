@@ -838,7 +838,14 @@ bool Panel::OpenInnerTar()
   LoadFullPath();
   const int depth = _parentFolders.size();
   _quietOpenErrors = true;
+  // not in place, even when the decompressor can seek (a multi-block xz):
+  // opening a tar reads its headers through the whole stream anyway, and
+  // seeking decodes on one thread. Extracting decodes the blocks on all
+  // cores (5x faster on 16), shows its progress at once, and the tar's
+  // files then read without decoding again.
+  _extractNested = true;
   OpenItemInArchive(0, true, false, false, false, L"tar");
+  _extractNested = false;
   _quietOpenErrors = false;
   if (_parentFolders.size() != depth + 1)
     return false;
@@ -1097,7 +1104,7 @@ void Panel::OpenItemInArchive(unsigned index, bool tryInternal, bool tryExternal
   tempFileInfo.FilePath = tempFilePath;
   tempFileInfo.NeedDelete = true;
 
-  if (tryAsArchive)
+  if (tryAsArchive && !_extractNested)
   {
     CMyComPtr<IInArchiveGetStream> getStream;
     _folder.QueryInterface(IID_IInArchiveGetStream, &getStream);
