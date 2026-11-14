@@ -79,6 +79,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Sat Nov 14 2026 Ringo Sham <ringosham@gmail.com> - 0.4.3-1
+- Open a .tar.xz on all cores: its tar is extracted instead of read in place.
+
 * Fri Nov 13 2026 Ringo Sham <ringosham@gmail.com> - 0.4.2-1
 - Remove 7zO temp folders left by a crashed instance on launch.
 
