@@ -123,4 +123,6 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 
 LGPL-2.1-or-later, with the unRAR license restriction. See `LICENSE`, which is upstream's `DOC/License.txt`. 7-Zip is Copyright (C) Igor Pavlov.
 
+`src/formats/disc/DiscChd.cpp` follows libchdr and is also under its BSD-3-Clause license (Aaron Giles, Romain Tisserand); see `src/formats/disc/LICENSE.chd`.
+
 *As much as I want to make this CC0 because I didn't write any of it, the project is derived from 7-Zip. Hence bound by the same license.*
