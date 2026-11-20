@@ -18,6 +18,10 @@ BuildRequires:  gcc-c++
 BuildRequires:  libxcb-devel
 BuildRequires:  ninja-build
 BuildRequires:  pkgconfig(libzstd)
+BuildRequires:  pkgconfig(zlib)
+BuildRequires:  bzip2-devel
+BuildRequires:  pkgconfig(liblz4)
+BuildRequires:  pkgconfig(flac)
 BuildRequires:  python3
 BuildRequires:  qt6-qtbase-devel >= 6.5
 %if %{with check}

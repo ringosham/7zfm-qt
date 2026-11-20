@@ -52,6 +52,39 @@ check sh -c "rm -rf cd/x && '$S' x cd/bad.bin cd/x 2>&1 | grep -q 'Track01.iso: 
 DESC="CD: an intact image extracts without errors"
 check sh -c "rm -rf cd/x && '$S' x cd/cd.bin cd/x >/dev/null"
 
+# The other disc image formats (src/formats/disc), from the same CD
+python3 -I "$SRC/tests/make_discimages.py" small-fat.img cd
+for img in cd/nrg.nrg cd/cdi.cdi cd/mds.mds cd/mds.mdf cd/gdi.gdi cd/ccd.ccd cd/ccd.img cd/multi.cue; do
+  DESC="$img lists its tracks"
+  check sh -c "'$S' ls '$img' | cut -f3 | tr '\\n' ' ' | grep -qx 'Track01.iso Track02.wav Track03.wav '"
+  DESC="$img: data track opens in place"
+  check sh -c "'$S' cat '$img' Track01.iso/FATFILE.TXT | cmp -s - fatcontent/FATFILE.TXT"
+  DESC="$img: audio tracks read as WAV"
+  check sh -c "'$S' cat '$img' Track02.wav | tail -c +45 | cmp -s - cd/cd-track2.pcm && '$S' cat '$img' Track03.wav | tail -c +45 | cmp -s - cd/cd-track3.pcm"
+done
+for img in cd/cso.cso cd/zso.zso cd/gc.ciso cd/isz.isz; do
+  DESC="$img opens at its files"
+  check sh -c "'$S' cat '$img' FATFILE.TXT | cmp -s - fatcontent/FATFILE.TXT"
+done
+DESC="ECM: sectors rebuilt with their EDC and ECC"
+# the output isn't sector-aligned after its literal bytes: past the data
+# track, a CD reader sees the rest as audio, whole sectors of it
+n=$(( $(stat -c %s cd/ecm.bin) / 2352 - 40 ))
+tail -c +$((40 * 2352 + 1)) cd/ecm.bin | head -c $((n * 2352)) > cd/ecm-rest.expected
+check sh -c "'$S' cat cd/ecm.bin.ecm Track01.iso | cmp -s -n 81920 - small-fat.img && '$S' cat cd/ecm.bin.ecm Track02.wav | tail -c +45 | cmp -s - cd/ecm-rest.expected"
+DESC="zisofs file decompresses"
+check sh -c "'$S' cat cd/file.zisofs file.zisofs | cmp -s - cd/file.plain"
+# CHDs made by chdman (tests/data/README.md)
+DESC="CHD CD (cdlz, cdzl, cdfl): tracks, data and audio"
+check sh -c "'$S' cat '$SRC/tests/data/cd.chd' Track01.iso/HDFILE.TXT | grep -qx 'hello from a CHD hard disk' && '$S' cat '$SRC/tests/data/cd.chd' Track02.wav | tail -c +45 | cmp -s - cd/cd-track2.pcm && '$S' cat '$SRC/tests/data/cd.chd' Track03.wav | tail -c +45 | cmp -s - cd/cd-track3.pcm"
+seq 1 100000 > cd/numbers.txt
+for chd in dvd dvd-zstd; do
+  DESC="CHD $chd opens at its files"
+  check sh -c "'$S' cat '$SRC/tests/data/$chd.chd' numbers.txt | cmp -s - cd/numbers.txt"
+done
+DESC="CHD hard disk opens at its file system"
+check sh -c "'$S' cat '$SRC/tests/data/hd.chd' HDFILE.TXT | grep -qx 'hello from a CHD hard disk'"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.

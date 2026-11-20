@@ -50,7 +50,10 @@ add_library(7zcore OBJECT
   src/core/Guids.cpp
   src/core/Seams.cpp
   src/formats/TarCompound.cpp
-  src/formats/CdImage.cpp
+  src/formats/disc/DiscImage.cpp
+  src/formats/disc/DiscTracks.cpp
+  src/formats/disc/DiscContainers.cpp
+  src/formats/disc/DiscChd.cpp
 )
 # Same defines as upstream 7zip_gcc.mak (formats linked statically, no
 # Z7_EXTERNAL_CODECS, RAR enabled).
@@ -104,7 +107,14 @@ find_package(Threads REQUIRED)
 # zstd compression (src/formats/TarCompound.cpp): upstream ships only the decoder
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
-target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads PkgConfig::ZSTD ${CMAKE_DL_LIBS})
+# disc images (src/formats/disc): CSO and CHD deflate, ZSO LZ4, ISZ bzip2,
+# CHD's FLAC audio
+find_package(ZLIB REQUIRED)
+find_package(BZip2 REQUIRED)
+pkg_check_modules(LZ4 REQUIRED IMPORTED_TARGET liblz4)
+pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
+target_link_libraries(7zcore PUBLIC Qt6::Core Threads::Threads PkgConfig::ZSTD
+  ZLIB::ZLIB BZip2::BZip2 PkgConfig::LZ4 PkgConfig::FLAC ${CMAKE_DL_LIBS})
 
 # ---- fmlogic: FileManager logic (ported in src/fm, plus upstream files that
 # compile unchanged), no widgets ----

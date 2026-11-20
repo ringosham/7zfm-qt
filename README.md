@@ -12,17 +12,25 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 **Open by signature, not extension**
 - Opens as long as it recognizes the file signature, not by the file extension
 - Everything 7-Zip already reads: Archives, ISOs, disk images, partitions, even raw filesystem dumps
-- It can open raw block devices in /dev if given root, read only
-- Raw CD images (.bin, with or without its .cue), which upstream 7-Zip can't read: the data track opens at its files, Up shows the tracks, and audio tracks extract as .wav. Test checks every data sector's error-detection code, so it tells a damaged .bin from a good one.
+
+**Addittional format support compared to Windows**
+- zstd compression (relies on system libzstd)
+- Open raw block devices in /dev if given root, read only
+- Disc images that upstream 7-Zip can't read, the formats of the Iso7z plugin for Windows (`src/formats/disc`):
+    - Track images: CUE/BIN, CCD/IMG (CloneCD), MDS/MDF (Alcohol 120%), NRG (Nero), GDI (Dreamcast), CDI (DiscJuggler), CHD (MAME, v3 to v5).
+    - Compressed images: CSO and ZSO (PSP), CISO (GameCube and Wii), ISZ (UltraISO, not encrypted or split), ECM, and zisofs files.
+    - Each track is a file: data tracks as .iso, audio tracks as .wav. The data track opens at its files, and Up shows the tracks.
+    - Test checks every data sector's error-detection code (and a CHD's checksums), so it tells a damaged image from a good one.
+    - CHD uses the system libFLAC for audio; CSO, ZSO and ISZ use the system zlib, lz4 and bzip2.
 
 **Directly open nested disk images without extracting**
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
 - This port builds 7-Zip as a library just like the Windows version. You can now directly open them at zero waiting time.
 
-**Compressed tar in one step**
-- Upstream 7-Zip compresses to gz, bz2 and xz only one file at a time, so a folder needs a tar first. Here the Add to Archive dialog and `-t` also offer `tgz` (.tar.gz), `tbz2` (.tar.bz2), `txz` (.tar.xz) and `tzst` (.tar.zst), which do both in one pass, and can add to or update an existing one.
-- gz, bz2 and xz use 7-Zip's own encoders. zstd uses the system libzstd, as upstream doesn't release its zstd encoder.
-- Opening a .tar.gz, .tar.bz2, .tar.xz, .tar.zst, .tar.Z or .tar.lzma shows the tar's contents right away, instead of the single .tar inside (which 7-Zip has to decompress first anyway); Up leaves both. Changes made in the tar are offered back to the compressed file when you leave it.
+**Qol changes to tar files**
+- You can now open compressed tar files (.tar.gz, .tar.xz, etc.) directly. No more opening the .tar file after decompressing. Saving some clicks and time
+- You can also *create and compress* tar files in one step. Normally you would have to create the tar file and compress in separate steps.
+    - Archive format is shown as tbz2, tgz, txz, tzst.
 
 **File manager integrations**
 - The same context menu entries from Windows are ported after to most major Linux file managers, so you can right click on an archive and extract it without opening the GUI.
@@ -93,7 +101,7 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
 
-**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`) and raw CD images (`CdImage.cpp`).
+**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 8 of them (`CD`, `Disc`, `MDS`, `CHD`, `CSO`, `ISZ`, `ECM`, `zisofs`), and another format would have to join one of those.
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 
