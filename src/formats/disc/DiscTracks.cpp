@@ -936,7 +936,7 @@ static HRESULT LoadDescriptorFile(IInStream *stream, CByteBuffer &buf)
 }
 
 namespace NRaw {
-// a raw .bin / .img / .mdf, by its first sector
+// a raw .bin / .img / .mdf, by its first sector; or an .mds
 class CHandler Z7_final: public CTrackHandler
 {
   HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override
@@ -944,9 +944,18 @@ class CHandler Z7_final: public CTrackHandler
     Byte h[16];
     RINOK(InStream_SeekToBegin(stream))
     RINOK(ReadStream_FALSE(stream, h, 16))
+    const UString name = GetArcName(callback);
+    // an Alcohol 120% .mds, which shares this format
+    if (memcmp(h, kMdsSignature, 16) == 0)
+    {
+      CByteBuffer buf;
+      RINOK(LoadDescriptorFile(stream, buf))
+      RINOK(LoadMds(*_disc, buf, callback, NULL, name))
+      _disc->NameTracks(BaseName(name));
+      return S_OK;
+    }
     if (memcmp(h, kSync, 12) != 0 || (h[15] != 1 && h[15] != 2))
       return S_FALSE;
-    const UString name = GetArcName(callback);
     static const char * const kDescriptors[] = { "cue", "ccd", "mds" };
     for (unsigned i = 0; i < 3; i++)
     {
@@ -981,8 +990,11 @@ class CHandler Z7_final: public CTrackHandler
     return S_OK;
   }
 };
-static const Byte k_Signature[] = { 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0 };
-REGISTER_ARC_I("CD", "bin img mdf", NULL, 0x94, k_Signature, 0, 0, NULL)
+// raw sectors, or an .mds: upstream's registry holds 72 formats at most
+static const Byte k_Signature[] = {
+    12, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0,
+    16, 'M', 'E', 'D', 'I', 'A', ' ', 'D', 'E', 'S', 'C', 'R', 'I', 'P', 'T', 'O', 'R' };
+REGISTER_ARC_I("CD", "bin img mdf mds", NULL, 0x94, k_Signature, 0, NArcInfoFlags::kMultiSignature, NULL)
 }
 
 // .cue, .ccd, .gdi, .nrg and .cdi have no signature, so they share one
@@ -1045,21 +1057,5 @@ class CHandler Z7_final: public CTrackHandler
 REGISTER_ARC_I_NO_SIG("Disc", "cue ccd gdi nrg cdi", NULL, 0x95, 0, NArcInfoFlags::kByExtOnlyOpen, NULL)
 }
 
-namespace NMds {
-class CHandler Z7_final: public CTrackHandler
-{
-  HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override
-  {
-    CByteBuffer buf;
-    RINOK(LoadDescriptorFile(stream, buf))
-    const UString name = GetArcName(callback);
-    RINOK(LoadMds(*_disc, buf, callback, NULL, name))
-    _disc->NameTracks(BaseName(name));
-    return S_OK;
-  }
-};
-static const Byte k_Signature[] = { 'M', 'E', 'D', 'I', 'A', ' ', 'D', 'E', 'S', 'C', 'R', 'I', 'P', 'T', 'O', 'R' };
-REGISTER_ARC_I("MDS", "mds", NULL, 0x98, k_Signature, 0, 0, NULL)
-}
 
 }}

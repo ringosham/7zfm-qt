@@ -819,7 +819,7 @@ bool Panel::OpenInnerTar()
     // data track, upstream's kpidMainSubfile opens it already): open the
     // data track's file system in place. Up shows the tracks.
     static const char * const kTrackImages[] =
-      { "7-Zip.CD", "7-Zip.Disc", "7-Zip.MDS", "7-Zip.CHD" };
+      { "7-Zip.CD", "7-Zip.Disc", "7-Zip.CHD" };
     for (const char *t : kTrackImages)
       if (type.IsEqualTo_Ascii_NoCase(t))
         return OpenCdDataTrack();

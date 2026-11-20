@@ -50,6 +50,7 @@ add_library(7zcore OBJECT
   src/core/Guids.cpp
   src/core/Seams.cpp
   src/formats/TarCompound.cpp
+  src/formats/ExFatHandler.cpp
   src/formats/disc/DiscImage.cpp
   src/formats/disc/DiscTracks.cpp
   src/formats/disc/DiscContainers.cpp

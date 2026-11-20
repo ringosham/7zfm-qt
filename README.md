@@ -16,7 +16,8 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 **Addittional format support compared to Windows**
 - zstd compression (relies on system libzstd)
 - Open raw block devices in /dev if given root, read only
-- Disc images that upstream 7-Zip can't read, the formats of the Iso7z plugin for Windows (`src/formats/disc`):
+- exFAT, read only, using the system exfat library (`src/formats/ExFatHandler.cpp`).
+- Optical disc images that upstream 7-Zip can't read without a plugin (`src/formats/disc`):
     - Track images: CUE/BIN, CCD/IMG (CloneCD), MDS/MDF (Alcohol 120%), NRG (Nero), GDI (Dreamcast), CDI (DiscJuggler), CHD (MAME, v3 to v5).
     - Compressed images: CSO and ZSO (PSP), CISO (GameCube and Wii), ISZ (UltraISO, not encrypted or split), ECM, and zisofs files.
     - Each track is a file: data tracks as .iso, audio tracks as .wav. The data track opens at its files, and Up shows the tracks.
@@ -101,7 +102,7 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
 
-**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 8 of them (`CD`, `Disc`, `MDS`, `CHD`, `CSO`, `ISZ`, `ECM`, `zisofs`), and another format would have to join one of those.
+**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`), exFAT (`ExFatHandler.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 7 of them (`CD`, `Disc`, `CHD`, `CSO`, `ISZ`, `ECM`, `zisofs`) and exFAT (`ExFatHandler.cpp`) has one. Another format would have to join one of those.
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 

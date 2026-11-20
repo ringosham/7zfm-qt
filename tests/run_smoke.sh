@@ -85,6 +85,18 @@ done
 DESC="CHD hard disk opens at its file system"
 check sh -c "'$S' cat '$SRC/tests/data/hd.chd' HDFILE.TXT | grep -qx 'hello from a CHD hard disk'"
 
+# exFAT (src/formats/ExFatHandler.cpp): an image written by Linux's exfat
+# driver, with long and non-BMP names, FAT chains and NoFatChain files, a
+# file preallocated past its valid length (tests/data/README.md)
+xz -dc "$SRC/tests/data/exfat.img.xz" > exfat.img
+DESC="exFAT: every file extracts byte-identical"
+check sh -c "rm -rf exfat-out && '$S' x exfat.img exfat-out >/dev/null && cd exfat-out && sha256sum -c --quiet '$SRC/tests/data/exfat.sha256' && test -d 'empty dir'"
+DESC="exFAT partition of an MBR disk opens in place"
+rm -f exfat-disk.img && truncate -s 10M exfat-disk.img
+printf 'label: dos\nstart=2048, type=7\n' | sfdisk -q exfat-disk.img
+dd if=exfat.img of=exfat-disk.img bs=512 seek=2048 conv=notrunc status=none
+check sh -c "'$S' cat exfat-disk.img deep/a/b/c/leaf.txt | grep -qx deep"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.
