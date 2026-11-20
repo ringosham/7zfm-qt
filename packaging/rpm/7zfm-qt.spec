@@ -83,6 +83,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Fri Nov 20 2026 Ringo Sham <ringosham@gmail.com> - 0.5.0-1
+- Disc images: CUE/BIN, CCD, MDS, NRG, GDI, CDI, CHD, CSO/ZSO, CISO, ISZ, ECM, zisofs.
+
 * Sat Nov 14 2026 Ringo Sham <ringosham@gmail.com> - 0.4.3-1
 - Open a .tar.xz on all cores: its tar is extracted instead of read in place.
 
