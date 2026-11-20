@@ -50,6 +50,7 @@ add_library(7zcore OBJECT
   src/core/Guids.cpp
   src/core/Seams.cpp
   src/formats/TarCompound.cpp
+  src/formats/CdImage.cpp
 )
 # Same defines as upstream 7zip_gcc.mak (formats linked statically, no
 # Z7_EXTERNAL_CODECS, RAR enabled).

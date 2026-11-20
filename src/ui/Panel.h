@@ -224,6 +224,7 @@ private:
   bool StartApplication(const UString &path, bool editMode, bool useEditor);
   HRESULT BindToNestedPath(UString &path);
   bool OpenInnerTar();
+  bool OpenCdDataTrack();
   void AskWriteBack(const CFolderLink &link);
 
   UString GetItemsInfoString(const CRecordVector<UInt32> &indices);

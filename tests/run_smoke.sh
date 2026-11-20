@@ -35,6 +35,23 @@ check sh -c "'$S' ls vhdx-in-zip.zip disk.vhdx >/dev/null 2>&1; [ \$? -eq 3 ]"
 DESC="xz -> tar -> FAT chain opens in place"
 check sh -c "'$S' cat small-fat.tar.xz small-fat.tar/small-fat.img/FATFILE.TXT | cmp -s - fatcontent/FATFILE.TXT"
 
+# Raw CD images (src/formats/CdImage.cpp), with the FAT image as data track
+python3 -I "$SRC/tests/make_cdimage.py" small-fat.img cd
+DESC="CD .bin + .cue lists its tracks"
+check sh -c "'$S' ls cd/cd.bin | cut -f3 | tr '\\n' ' ' | grep -qx 'Track01.iso Track02.wav Track03.wav '"
+DESC="CD data track opens in place"
+check sh -c "'$S' cat cd/cd.bin Track01.iso/FATFILE.TXT | cmp -s - fatcontent/FATFILE.TXT"
+DESC="CD audio tracks read as WAV, pregap left out"
+check sh -c "'$S' cat cd/cd.bin Track02.wav | tail -c +45 | cmp -s - cd/cd-track2.pcm && '$S' cat cd/cd.bin Track03.wav | tail -c +45 | cmp -s - cd/cd-track3.pcm"
+DESC="MODE2 CD with no .cue opens straight to its files"
+check sh -c "'$S' ls cd/mode2.bin | grep -q FATFILE.TXT"
+DESC="CD with no .cue: audio found after the data track"
+check sh -c "'$S' ls cd/bad.bin | cut -f3 | tr '\\n' ' ' | grep -qx 'Track01.iso Track02.wav '"
+DESC="CD: a damaged data sector fails its EDC check"
+check sh -c "rm -rf cd/x && '$S' x cd/bad.bin cd/x 2>&1 | grep -q 'Track01.iso: operation result 3'"
+DESC="CD: an intact image extracts without errors"
+check sh -c "rm -rf cd/x && '$S' x cd/cd.bin cd/x >/dev/null"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.

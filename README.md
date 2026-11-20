@@ -13,6 +13,7 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 - Opens as long as it recognizes the file signature, not by the file extension
 - Everything 7-Zip already reads: Archives, ISOs, disk images, partitions, even raw filesystem dumps
 - It can open raw block devices in /dev if given root, read only
+- Raw CD images (.bin, with or without its .cue), which upstream 7-Zip can't read: the data track opens at its files, Up shows the tracks, and audio tracks extract as .wav. Test checks every data sector's error-detection code, so it tells a damaged .bin from a good one.
 
 **Directly open nested disk images without extracting**
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
@@ -91,6 +92,8 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - `QSettings`-backed `NWindows::NRegistry::CKey`, so upstream's settings code (`ZipRegistry`, `RegistryUtils`, `ViewSettings`) runs as is;
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
+
+**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`) and raw CD images (`CdImage.cpp`).
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 
