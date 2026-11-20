@@ -11,6 +11,9 @@
 //
 // Each is one item, read through CBlockHandler's block cache; upstream
 // opens what it holds right away (kpidMainSubfile).
+//
+// The layouts are as maxcso's format notes, Dolphin and libmirage give
+// them; no code of theirs is used here.
 
 #include "DiscImage.h"
 

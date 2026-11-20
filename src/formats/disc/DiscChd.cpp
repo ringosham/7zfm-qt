@@ -1,5 +1,8 @@
 // DiscChd.cpp -- 7zfm-qt: MAME's CHD (Compressed Hunks of Data), versions
-// 3 to 5, after libchdr (BSD-3-Clause, Aaron Giles). A CD or GD-ROM shows
+// 3 to 5. The bit reader, Huffman decoder, v5 map decoder and codec layouts
+// follow libchdr: Copyright Aaron Giles, Copyright Romain Tisserand, under
+// the BSD-3-Clause license in LICENSE.chd next to this file, whose notice,
+// conditions and disclaimer apply to this file. A CD or GD-ROM shows
 // its tracks (see DiscImage.h), from the CHT2 / CHTR / CHGD metadata; a DVD
 // is one .iso, a hard disk one .img. CHDs that need a parent are refused.
 //

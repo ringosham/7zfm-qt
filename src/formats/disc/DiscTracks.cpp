@@ -1,5 +1,6 @@
 // DiscTracks.cpp -- 7zfm-qt: track images (see DiscImage.h): CUE/BIN,
-// CCD/IMG, MDS/MDF, NRG, GDI and CDI. Layouts follow libmirage (cdemu).
+// CCD/IMG, MDS/MDF, NRG, GDI and CDI. The file layouts are as libmirage
+// (cdemu) reads them; no libmirage code is used here.
 //
 // A raw .bin/.img/.mdf opens by its first sector's sync pattern (format
 // "CD") and reads its tracks from the .cue, .ccd or .mds next to it; the

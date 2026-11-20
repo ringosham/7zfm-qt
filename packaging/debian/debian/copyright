@@ -44,6 +44,12 @@ Copyright: Facebook, Inc.
            2023-2026 Igor Pavlov
 License: BSD-3-clause
 
+Files: src/formats/disc/DiscChd.cpp
+Copyright: Aaron Giles
+           Romain Tisserand (libchdr)
+License: BSD-3-clause
+Comment: follows libchdr; the full notice is src/formats/disc/LICENSE.chd
+
 Files: external/7zip/C/Xxh64.c
 Copyright: 2012-2021 Yann Collet
            2023-2026 Igor Pavlov
