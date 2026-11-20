@@ -255,7 +255,7 @@ Z7_class_CHandler_final:
   HRESULT ReadDir(UInt32 cluster, UInt64 size, bool noFatChain, int parent, unsigned depth,
       IArchiveOpenCallback *callback);
   void GetPath(unsigned index, UString &path) const;
-  HRESULT GetItemStream(unsigned index, CItemStream **stream);
+  HRESULT GetItemStream(unsigned index, CMyComPtr<IInStream> &stream);
 };
 
 HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
@@ -443,9 +443,9 @@ void CHandler::GetPath(unsigned index, UString &path) const
   }
 }
 
-HRESULT CHandler::GetItemStream(unsigned index, CItemStream **stream)
+HRESULT CHandler::GetItemStream(unsigned index, CMyComPtr<IInStream> &stream)
 {
-  *stream = NULL;
+  stream.Release();
   const CItem &item = _items[index];
   CItemStream *s = new CItemStream;
   CMyComPtr<IInStream> ref = s;
@@ -455,8 +455,7 @@ HRESULT CHandler::GetItemStream(unsigned index, CItemStream **stream)
   if (!_vol->GetRuns(item.Cluster, item.ValidSize, item.NoFatChain, s->Runs))
     return S_FALSE;
   s->Init();
-  *stream = s;
-  ref.Detach();
+  stream = ref;
   return S_OK;
 }
 
@@ -630,10 +629,9 @@ Z7_COM7F_IMF(CHandler::GetStream(UInt32 index, ISequentialInStream **stream))
   *stream = NULL;
   if (index >= _items.Size() || _items[index].IsDir())
     return S_FALSE;
-  CItemStream *s;
-  RINOK(GetItemStream(index, &s))
-  CMyComPtr<IInStream> ref = s;
-  *stream = ref.Detach();
+  CMyComPtr<IInStream> s;
+  RINOK(GetItemStream(index, s))
+  *stream = s.Detach();
   return S_OK;
   COM_TRY_END
 }
@@ -682,14 +680,13 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
       continue;
     RINOK(extractCallback->PrepareOperation(askMode))
     Int32 opRes = NExtract::NOperationResult::kOK;
-    CItemStream *s = NULL;
-    const HRESULT res = GetItemStream(index, &s);
+    CMyComPtr<IInStream> in;
+    const HRESULT res = GetItemStream(index, in);
     if (res == S_FALSE)
       opRes = NExtract::NOperationResult::kDataError;
     else
     {
       RINOK(res)
-      CMyComPtr<IInStream> in = s;
       RINOK(copyCoder.Code(in, outStream, NULL, lps))
       if (copyCoder.TotalSize != item.Size)
         opRes = NExtract::NOperationResult::kUnexpectedEnd;
