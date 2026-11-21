@@ -936,15 +936,47 @@ static HRESULT LoadDescriptorFile(IInStream *stream, CByteBuffer &buf)
 }
 
 namespace NRaw {
-// a raw .bin / .img / .mdf, by its first sector; or an .mds
+// a raw .bin / .img / .mdf, by its first sector; or an .mds or .ecm
 class CHandler Z7_final: public CTrackHandler
 {
-  HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override
+  HRESULT Open2(IInStream *arcStream, IArchiveOpenCallback *callback) Z7_override
   {
     Byte h[16];
-    RINOK(InStream_SeekToBegin(stream))
-    RINOK(ReadStream_FALSE(stream, h, 16))
-    const UString name = GetArcName(callback);
+    RINOK(InStream_SeekToBegin(arcStream))
+    RINOK(ReadStream_FALSE(arcStream, h, 16))
+    UString name = GetArcName(callback);
+    CMyComPtr<IInStream> stream = arcStream;
+    // an ECM file: the sectors it holds, named as without ".ecm"
+    if (memcmp(h, "ECM", 4) == 0)
+    {
+      RINOK(OpenEcm(arcStream, callback, stream))
+      name = BaseName(name);
+      if (name.IsEmpty())
+        name = L"image.bin";
+      size_t n = 16;
+      RINOK(InStream_SeekToBegin(stream))
+      RINOK(ReadStream(stream, h, &n))
+      if (n < 16)
+        return S_FALSE;
+      if (memcmp(h, kSync, 12) != 0)
+      {
+        // no raw sectors: an image of 2048-byte ones, or nothing we know
+        UInt64 size;
+        RINOK(StreamSize(stream, size))
+        if (size == 0 || size % kDataSize != 0)
+          return S_FALSE;
+        _disc->Sources.Add(stream);
+        CTrack t;
+        t.Number = 1;
+        t.Mode = kMode1;
+        t.Format = kCooked2048;
+        t.Stride = kDataSize;
+        t.NumSectors = (UInt32)(size / kDataSize);
+        _disc->Tracks.Add(t);
+        _disc->NameTracks(BaseName(name));
+        return S_OK;
+      }
+    }
     // an Alcohol 120% .mds, which shares this format
     if (memcmp(h, kMdsSignature, 16) == 0)
     {
@@ -990,11 +1022,12 @@ class CHandler Z7_final: public CTrackHandler
     return S_OK;
   }
 };
-// raw sectors, or an .mds: upstream's registry holds 72 formats at most
+// raw sectors, an .mds or an .ecm: upstream's registry holds 72 formats at most
 static const Byte k_Signature[] = {
     12, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0,
-    16, 'M', 'E', 'D', 'I', 'A', ' ', 'D', 'E', 'S', 'C', 'R', 'I', 'P', 'T', 'O', 'R' };
-REGISTER_ARC_I("CD", "bin img mdf mds", NULL, 0x94, k_Signature, 0, NArcInfoFlags::kMultiSignature, NULL)
+    16, 'M', 'E', 'D', 'I', 'A', ' ', 'D', 'E', 'S', 'C', 'R', 'I', 'P', 'T', 'O', 'R',
+    4, 'E', 'C', 'M', 0 };
+REGISTER_ARC_I("CD", "bin img mdf mds ecm", NULL, 0x94, k_Signature, 0, NArcInfoFlags::kMultiSignature, NULL)
 }
 
 // .cue, .ccd, .gdi, .nrg and .cdi have no signature, so they share one

@@ -97,6 +97,18 @@ printf 'label: dos\nstart=2048, type=7\n' | sfdisk -q exfat-disk.img
 dd if=exfat.img of=exfat-disk.img bs=512 seek=2048 conv=notrunc status=none
 check sh -c "'$S' cat exfat-disk.img deep/a/b/c/leaf.txt | grep -qx deep"
 
+# lzip (src/formats/LzipHandler.cpp), files made by lzip 1.25
+seq 1 30000 > lzip-seq.txt
+for f in seq multi; do
+  DESC="lzip: $f.txt.lz decompresses"
+  check sh -c "rm -rf lzip-out && '$S' x '$SRC/tests/data/lzip/$f.txt.lz' lzip-out >/dev/null && cmp -s lzip-out/$f.txt lzip-seq.txt"
+done
+DESC="lzip: an empty file decompresses"
+check sh -c "rm -rf lzip-out && '$S' x '$SRC/tests/data/lzip/empty.lz' lzip-out >/dev/null && test -f lzip-out/empty && ! test -s lzip-out/empty"
+DESC="lzip: a damaged file is an error"
+python3 -I -c 'import sys; b = bytearray(open(sys.argv[1], "rb").read()); b[len(b) // 2] ^= 0x10; open(sys.argv[2], "wb").write(b)' "$SRC/tests/data/lzip/seq.txt.lz" lzip-bad.txt.lz
+check sh -c "rm -rf lzip-out; '$S' x lzip-bad.txt.lz lzip-out >/dev/null 2>&1; [ \$? -ne 0 ]"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.

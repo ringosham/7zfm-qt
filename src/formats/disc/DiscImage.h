@@ -178,6 +178,8 @@ HRESULT LoadMds(CDisc &disc, const CByteBuffer &mds, IArchiveOpenCallback *callb
     IInStream *mdfStream, const UString &mdsName);
 // a raw .bin with no descriptor: the data track, then audio
 HRESULT LoadRawSectors(CDisc &disc, IInStream *stream);
+// the image an ECM file holds, as a stream (DiscContainers.cpp)
+HRESULT OpenEcm(IInStream *stream, IArchiveOpenCallback *callback, CMyComPtr<IInStream> &decoded);
 
 // ---------- containers ----------
 

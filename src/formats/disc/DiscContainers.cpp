@@ -6,7 +6,7 @@
 //   ISZ        UltraISO: zlib / bzip2 chunks (libmirage); not encrypted,
 //              not split
 //   ECM        Neill Corlett's ECM: CD sectors with their sync, EDC and ECC
-//              left out, put back here
+//              left out, put back here; opened by the CD format (OpenEcm)
 //   zisofs     a file compressed by mkzftree, as stored on a zisofs ISO
 //
 // Each is one item, read through CBlockHandler's block cache; upstream
@@ -499,9 +499,22 @@ public:
   }
 };
 
-static const Byte k_Signature[] = { 'E', 'C', 'M', 0 };
-REGISTER_ARC_I("ECM", "ecm", NULL, 0x9F, k_Signature, 0, 0, NULL)
+}
 
+// ECM has no registration of its own: the CD format opens it, and shows
+// the tracks of what it holds (upstream's registry holds 72 formats at most)
+HRESULT OpenEcm(IInStream *stream, IArchiveOpenCallback *callback, CMyComPtr<IInStream> &decoded)
+{
+  decoded.Release();
+  CMyComPtr<IInArchive> arc = new NEcm::CHandler;
+  RINOK(arc->Open(stream, NULL, callback))
+  CMyComPtr<IInArchiveGetStream> getStream;
+  RINOK(arc.QueryInterface(IID_IInArchiveGetStream, &getStream))
+  CMyComPtr<ISequentialInStream> s;
+  RINOK(getStream->GetStream(0, &s))
+  if (!s)
+    return S_FALSE;
+  return s.QueryInterface(IID_IInStream, &decoded);
 }
 
 // ---------- zisofs ----------

@@ -18,3 +18,7 @@ hold. The CHDs were made by MAME's `chdman` 0.276 (Debian `mame-tools`).
   `prealloc.bin` (fallocate 100000, then "start" written: zeros past its
   valid data length). `exfat.sha256` lists every file's checksum, made from
   the source files, not from this reader.
+- `lzip/`: made by lzip 1.25 (Debian `lzip`). `seq.txt.lz` is `seq 1 30000`
+  at `-9`; `multi.txt.lz` is two members (its first 100000 bytes, then the
+  rest with a 64 KiB dictionary) concatenated; `empty.lz` an empty file;
+  `hello.tar.lz` a tar of `lzip-hello.txt` ("hello from a tar.lz").

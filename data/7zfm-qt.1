@@ -34,7 +34,8 @@ With no arguments, or with a
 .IR path ,
 it opens the file manager there: a folder, or an archive or image to browse.
 Without a path, each panel reopens the folder it showed last.
-A compressed tar (.tar.gz, .tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma)
+A compressed tar (.tar.gz, .tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma,
+.tar.lz)
 opens at the tar's contents rather than at the single .tar inside it.
 Disc images that upstream 7-Zip doesn't read open too: CUE/BIN, CCD/IMG,
 MDS/MDF, NRG, GDI, CDI and CHD show their tracks, data tracks as .iso and
@@ -42,7 +43,7 @@ audio tracks as .wav, and open at the data track's files (Up shows the
 tracks); CSO, ZSO, CISO, ISZ and ECM open at the image they hold; a zisofs
 file opens as the file it compresses. Testing a track image checks the
 error-detection code of every data sector.
-exFAT volumes open as well, read only.
+exFAT volumes and lzip files open as well, read only.
 .PP
 With a 7-Zip
 .I command

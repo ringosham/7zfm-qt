@@ -803,7 +803,7 @@ void Panel::AskWriteBack(const CFolderLink &link)
     MessageBox_Error(HResultToMessage(res));
 }
 
-// 7zfm-qt: a .tar.gz (.tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma) holds
+// 7zfm-qt: a .tar.gz (.tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma, .tar.lz) holds
 // one .tar; its contents are shown right away, by opening that tar as a
 // double-click would. Up leaves both together (OpenParentFolder).
 bool Panel::OpenInnerTar()
@@ -824,7 +824,7 @@ bool Panel::OpenInnerTar()
       if (type.IsEqualTo_Ascii_NoCase(t))
         return OpenCdDataTrack();
     static const char * const kCompressors[] =
-      { "7-Zip.gzip", "7-Zip.bzip2", "7-Zip.xz", "7-Zip.zstd", "7-Zip.Z", "7-Zip.lzma" };
+      { "7-Zip.gzip", "7-Zip.bzip2", "7-Zip.xz", "7-Zip.zstd", "7-Zip.Z", "7-Zip.lzma", "7-Zip.lzip" };
     bool isCompressor = false;
     for (const char *c : kCompressors)
       if (type.IsEqualTo_Ascii_NoCase(c))
