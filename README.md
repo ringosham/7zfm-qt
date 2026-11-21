@@ -103,7 +103,7 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
 
-**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`), exFAT (`ExFatHandler.cpp`), lzip (`LzipHandler.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 6 of them (`CD`, which also opens .mds and .ecm, `Disc`, `CHD`, `CSO`, `ISZ`, `zisofs`), and exFAT (`ExFatHandler.cpp`) and lzip (`LzipHandler.cpp`) have one each. Another format would have to join one of those.
+**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`), exFAT (`ExFatHandler.cpp`), lzip (`LzipHandler.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 6 of them (`CD`, which also opens .mds and .ecm, `Disc`, `CHD`, `CSO`, `ISZ`, `zisofs`), and exFAT (`ExFatHandler.cpp`) and lzip (`LzipHandler.cpp`) have one each. Another format would have to join one of those. `WinPathZip.cpp` makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them; upstream's Linux build keeps it in the name.
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 

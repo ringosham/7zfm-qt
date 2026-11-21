@@ -109,6 +109,27 @@ DESC="lzip: a damaged file is an error"
 python3 -I -c 'import sys; b = bytearray(open(sys.argv[1], "rb").read()); b[len(b) // 2] ^= 0x10; open(sys.argv[2], "wb").write(b)' "$SRC/tests/data/lzip/seq.txt.lz" lzip-bad.txt.lz
 check sh -c "rm -rf lzip-out; '$S' x lzip-bad.txt.lz lzip-out >/dev/null 2>&1; [ \$? -ne 0 ]"
 
+# zip paths with '\' (src/formats/WinPathZip.cpp): folders when made on
+# Windows, part of the name when made on Unix
+python3 -I -c '
+import sys, zipfile
+def add(z, name, data, system):
+    i = zipfile.ZipInfo(name); i.create_system = system
+    i.external_attr = 0x20 if system == 0 else (0o644 << 16)
+    z.writestr(i, data)
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    add(z, "dir\\sub\\file.txt", b"win\n", 0)
+    add(z, "dir\\other.txt", b"win2\n", 0)
+with zipfile.ZipFile(sys.argv[2], "w") as z:
+    add(z, "weird\\name.txt", b"unix\n", 3)
+' winpath.zip unixpath.zip
+DESC="zip made on Windows: '\\' separates folders"
+check sh -c "'$S' ls winpath.zip dir | cut -f3 | tr '\\n' ' ' | grep -qx 'sub other.txt '"
+DESC="zip made on Windows: extracts into folders"
+check sh -c "rm -rf winpath-out && '$S' x winpath.zip winpath-out >/dev/null && grep -qx win winpath-out/dir/sub/file.txt"
+DESC="zip made on Unix: '\\' stays part of the name"
+check sh -c "'$S' ls unixpath.zip | cut -f3 | grep -qxF 'weird\\name.txt'"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.

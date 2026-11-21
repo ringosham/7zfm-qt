@@ -1,6 +1,7 @@
 // Agent.cpp
 
 #include "StdAfx.h"
+#include "../formats/WinPathZip.h"
 
 #include <wchar.h>
 
@@ -97,6 +98,7 @@ HRESULT LoadGlobalCodecs()
   #endif
 
   RINOK(g_CodecsObj->Load())
+  Z7Qt_FixWinPathFormats(g_CodecsObj); // 7zfm-qt: '\\' in zip paths made on Windows
   if (g_CodecsObj->Formats.IsEmpty())
   {
     FreeGlobalCodecs_NoLock();

@@ -5,6 +5,7 @@
 // codecs, and the arguments come from argv instead of GetCommandLineW().
 
 #include "Common/MyException.h"
+#include "../formats/WinPathZip.h"
 #include "Common/StringConvert.h"
 
 #include "7zip/UI/Common/ArchiveCommandLine.h"
@@ -83,6 +84,7 @@ static int Main2(UStringVector &commandStrings)
   codecs->CaseSensitive_Change = options.CaseSensitive_Change;
   codecs->CaseSensitive = options.CaseSensitive;
   ThrowException_if_Error(codecs->Load());
+  Z7Qt_FixWinPathFormats(codecs); // 7zfm-qt: '\\' in zip paths made on Windows
   Codecs_AddHashArcHandler(codecs);
 
   const bool isExtractGroupCommand = options.Command.IsFromExtractGroup();

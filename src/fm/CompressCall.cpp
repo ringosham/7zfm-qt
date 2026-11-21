@@ -4,6 +4,7 @@
 // added with the phases that bring UpdateGUI and the hash menu.
 
 #include "Common/MyException.h"
+#include "../formats/WinPathZip.h"
 
 #include "7zip/UI/Common/EnumDirItems.h"
 #include "7zip/UI/FileManager/LangUtils.h"
@@ -34,6 +35,7 @@ static void ThrowException_if_Error(HRESULT res)
   CCodecs *codecs = new CCodecs; \
   CMyComPtr<IUnknown> compressCodecsInfo = codecs; \
   ThrowException_if_Error(codecs->Load()); \
+  Z7Qt_FixWinPathFormats(codecs); \
   Codecs_AddHashArcHandler(codecs);
 
 #define LOAD_EXTERNAL_CODECS
