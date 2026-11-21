@@ -15,6 +15,7 @@
 #include <QApplication>
 #include <QDialogButtonBox>
 #include <QEventLoop>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QLabel>
@@ -57,6 +58,59 @@ static QString TimeStr(qint64 sec)
   return QString::asprintf("%02lld:%02lld:%02lld", (long long)h, (long long)m, (long long)s);
 }
 
+// the path being worked on gets this many lines, so the dialog keeps its
+// size; a longer path loses its middle
+static const int kPathLines = 3;
+
+// (s) broken into lines of at most (width) pixels: after a '/' or a space
+// where there is one, anywhere otherwise (paths often have no spaces)
+static QString WrapPath(const QString &in, const QFontMetrics &fm, int width)
+{
+  QString s = in;
+  const int budget = width * kPathLines * 9 / 10;
+  if (fm.horizontalAdvance(s) > budget)
+    s = fm.elidedText(s, Qt::ElideMiddle, budget);
+  QStringList lines;
+  QString cur;
+  for (int i = 0; i < s.size(); )
+  {
+    // a character, with its low surrogate
+    const int n = (s[i].isHighSurrogate() && i + 1 < s.size()) ? 2 : 1;
+    const QString c = s.mid(i, n);
+    i += n;
+    if (!cur.isEmpty() && fm.horizontalAdvance(cur + c) > width)
+    {
+      int brk = -1;
+      for (int k = cur.size() - 1; k > 0; k--)
+        if (cur[k] == QLatin1Char('/') || cur[k] == QLatin1Char(' '))
+        {
+          brk = k + 1;
+          break;
+        }
+      if (brk > 0 && brk < cur.size())
+      {
+        lines << cur.left(brk);
+        cur = cur.mid(brk);
+      }
+      else
+      {
+        lines << cur;
+        cur.clear();
+      }
+    }
+    cur += c;
+  }
+  if (!cur.isEmpty())
+    lines << cur;
+  while (lines.size() > kPathLines)
+  {
+    // what the 9/10 budget didn't leave room for: keep both ends
+    lines.removeAt(kPathLines / 2);
+    lines[kPathLines / 2] = fm.elidedText(QStringLiteral("\u2026") + lines[kPathLines / 2], Qt::ElideRight, width);
+  }
+  return lines.join(QLatin1Char('\n'));
+}
+
 ProgressDialog::ProgressDialog(CProgressSync &sync, const QString &title, QWidget *parent):
     QDialog(parent),
     _sync(sync),
@@ -87,7 +141,12 @@ ProgressDialog::ProgressDialog(CProgressSync &sync, const QString &title, QWidge
   _pathLabel = new QLabel;
   _pathLabel->setTextFormat(Qt::PlainText);
   _pathLabel->setMinimumWidth(420);
-  _pathLabel->setWordWrap(true);
+  // wrapped by WrapPath(), in a fixed number of lines: a label that wraps
+  // itself grows as the path does, and the dialog doesn't, so the rows
+  // above were squeezed
+  _pathLabel->setFixedHeight(_pathLabel->fontMetrics().lineSpacing() * kPathLines
+      + _pathLabel->contentsMargins().top() + _pathLabel->contentsMargins().bottom());
+  _pathLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
   _bar = new QProgressBar;
   _bar->setRange(0, 1000);
   _bar->setTextVisible(true);
@@ -189,7 +248,16 @@ void ProgressDialog::UpdateUi()
   if (inSize != PROGRESS_UNDEFINED_VAL && outSize != PROGRESS_UNDEFINED_VAL && inSize != 0)
     _ratioLabel->setText(QString::number((int)((double)outSize * 100 / (double)inSize)) + QLatin1Char('%'));
   _statusLabel->setText(ToQ(status));
-  _pathLabel->setText(ToQ(path));
+  {
+    const QString p = ToQ(path);
+    const int w = qMax(_pathLabel->contentsRect().width(), _pathLabel->minimumWidth());
+    if (p != _pathShown || w != _pathWidth)
+    {
+      _pathShown = p;
+      _pathWidth = w;
+      _pathLabel->setText(WrapPath(p, _pathLabel->fontMetrics(), w));
+    }
+  }
 
   QString t;
   if (progressTotal != PROGRESS_UNDEFINED_VAL && progressTotal != 0 && _bar->maximum() > 0)

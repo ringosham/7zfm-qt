@@ -51,6 +51,8 @@ private:
   QLabel *_ratioLabel;
   QLabel *_statusLabel;
   QLabel *_pathLabel;
+  QString _pathShown;       // the path _pathLabel shows, and at which width
+  int _pathWidth = -1;
   QProgressBar *_bar;
   QPushButton *_pauseButton;
   QPushButton *_cancelButton;
