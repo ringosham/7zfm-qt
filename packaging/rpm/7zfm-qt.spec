@@ -83,6 +83,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Sat Nov 21 2026 Ringo Sham <ringosham@gmail.com> - 0.5.3-1
+- Disc images with more than one track show their tracks.
+
 * Sat Nov 21 2026 Ringo Sham <ringosham@gmail.com> - 0.5.2-1
 - lzip files open (.lz, .tar.lz, .tlz), read only.
 
