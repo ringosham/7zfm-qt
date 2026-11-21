@@ -39,8 +39,8 @@ A compressed tar (.tar.gz, .tar.bz2, .tar.xz, .tar.zst, .tar.Z, .tar.lzma,
 opens at the tar's contents rather than at the single .tar inside it.
 Disc images that upstream 7-Zip doesn't read open too: CUE/BIN, CCD/IMG,
 MDS/MDF, NRG, GDI, CDI and CHD show their tracks, data tracks as .iso and
-audio tracks as .wav, and open at the data track's files (Up shows the
-tracks); CSO, ZSO, CISO, ISZ and ECM open at the image they hold; a zisofs
+audio tracks as .wav (one with only a data track opens at its files); CSO,
+ZSO, CISO and ISZ open at the image they hold, and ECM at its tracks; a zisofs
 file opens as the file it compresses. Testing a track image checks the
 error-detection code of every data sector.
 exFAT volumes and lzip files open as well, read only.

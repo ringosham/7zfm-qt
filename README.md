@@ -21,7 +21,7 @@ It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code 
 - Optical disc images that upstream 7-Zip can't read without a plugin (`src/formats/disc`):
     - Track images: CUE/BIN, CCD/IMG (CloneCD), MDS/MDF (Alcohol 120%), NRG (Nero), GDI (Dreamcast), CDI (DiscJuggler), CHD (MAME, v3 to v5).
     - Compressed images: CSO and ZSO (PSP), CISO (GameCube and Wii), ISZ (UltraISO, not encrypted or split), ECM, and zisofs files.
-    - Each track is a file: data tracks as .iso, audio tracks as .wav. The data track opens at its files, and Up shows the tracks.
+    - Each track is a file: data tracks as .iso, audio tracks as .wav. An image with only a data track opens at its files; one with more tracks shows the tracks.
     - Test checks every data sector's error-detection code (and a CHD's checksums), so it tells a damaged image from a good one.
     - CHD uses the system libFLAC for audio; CSO, ZSO and ISZ use the system zlib, lz4 and bzip2.
 

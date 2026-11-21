@@ -44,14 +44,15 @@ DESC="GUI: a tar opened from memory can't be changed: no crash, archive kept"
 check run "$T/small-fat.tar.xz" --keys "Delete,@wait,Return,@wait,@wait" --screenshot "$WORK/t4.png"
 check cmp -s "$T/small-fat.tar.xz" "$FX/small-fat.tar.xz"
 
-# a raw CD image with audio tracks opens at its data track (Panel::OpenCdDataTrack)
+# a raw CD image: with one track it opens at that track's files (upstream's
+# kpidMainSubfile), with more it shows the tracks
 C="$WORK/cd"
 python3 -I "$SRC/tests/make_cdimage.py" "$FX/small-fat.img" "$C"
-DESC="GUI: a .bin + .cue with audio opens at the data track's files"
-check run "$C/cd.bin" --keys "F5,Return" --screenshot "$WORK/c1.png"
+DESC="GUI: a CD image with only a data track opens at its files"
+check run "$C/mode2.bin" --keys "F5,Return" --screenshot "$WORK/c1.png"
 check cmp -s "$C/FATFILE.TXT" "$FX/fatcontent/FATFILE.TXT"
-DESC="GUI: Up from the data track shows the tracks"
-check run "$C/cd.bin" --keys "@action:up,F5,Return" --screenshot "$WORK/c2.png"
+DESC="GUI: a .bin + .cue with audio tracks shows the tracks"
+check run "$C/cd.bin" --keys "F5,Return" --screenshot "$WORK/c2.png"
 check cmp -s "$C/Track01.iso" "$FX/small-fat.img"
 
 DESC="GUI: Extract dialog extracts small-fat.tar.xz into a subfolder"

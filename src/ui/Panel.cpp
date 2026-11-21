@@ -815,14 +815,6 @@ bool Panel::OpenInnerTar()
     if (_folder->GetFolderProperty(kpidType, &prop) != S_OK || prop.vt != VT_BSTR)
       return false;
     const UString type = prop.bstrVal;
-    // a CD image with audio tracks (src/formats/CdImage.cpp; with only a
-    // data track, upstream's kpidMainSubfile opens it already): open the
-    // data track's file system in place. Up shows the tracks.
-    static const char * const kTrackImages[] =
-      { "7-Zip.CD", "7-Zip.Disc", "7-Zip.CHD" };
-    for (const char *t : kTrackImages)
-      if (type.IsEqualTo_Ascii_NoCase(t))
-        return OpenCdDataTrack();
     static const char * const kCompressors[] =
       { "7-Zip.gzip", "7-Zip.bzip2", "7-Zip.xz", "7-Zip.zstd", "7-Zip.Z", "7-Zip.lzma", "7-Zip.lzip" };
     bool isCompressor = false;
@@ -859,32 +851,6 @@ bool Panel::OpenInnerTar()
     return false;
   _parentFolders.back().InnerTar = true;
   return true;
-}
-
-bool Panel::OpenCdDataTrack()
-{
-  if (!GetFolderPath(_folder).IsEmpty())
-    return false;
-  _folder->LoadItems();
-  UInt32 numItems = 0;
-  if (_folder->GetNumberOfItems(&numItems) != S_OK)
-    return false;
-  // the last data track that opens: a later session lists every file, and
-  // a GD-ROM's last track is no file system of its own
-  for (UInt32 i = numItems; i-- > 0;)
-  {
-    const UString name = GetItemName(i);
-    if (IsItem_Folder(i) || name.Len() <= 4 || !StringsAreEqualNoCase_Ascii(name.RightPtr(4), ".iso"))
-      continue;
-    LoadFullPath();
-    const int depth = _parentFolders.size();
-    _quietOpenErrors = true;
-    OpenItemInArchive(i, true, false, false, false, NULL);
-    _quietOpenErrors = false;
-    if (_parentFolders.size() == depth + 1)
-      return true;
-  }
-  return false;
 }
 
 void Panel::CloseOpenFolders()
