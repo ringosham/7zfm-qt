@@ -1,6 +1,8 @@
 // core_smoke: exercises the engine the way 7zFM's Open Inside does.
 //
 //   core_smoke formats
+//   core_smoke fstype <path>                  "windows" if extracting there
+//                                             keeps Windows' rules for names
 //   core_smoke ls  <file> [item/inside ...]   list the folder reached
 //   core_smoke cat <file> item/inside ...     write the item's bytes to stdout
 //   core_smoke x   <file> <outdir>            extract everything through the
@@ -27,6 +29,7 @@
 #include "7zip/UI/Common/ArchiveOpenCallback.h"
 
 #include "Agent.h"
+#include "../src/core/WinFsNames.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -173,6 +176,12 @@ int main(int argc, char **argv)
   MY_SetLocale();
   if (LoadGlobalCodecs() != S_OK)
     return 2;
+  // fstype <path>: whether extraction there keeps Windows' rules for names
+  if (argc == 3 && strcmp(argv[1], "fstype") == 0)
+  {
+    printf("%s\n", Z7Qt_IsWindowsFileSystem(FString(argv[2])) ? "windows" : "posix");
+    return 0;
+  }
   if (argc >= 2 && strcmp(argv[1], "formats") == 0)
   {
     FOR_VECTOR (i, g_CodecsObj->Formats)

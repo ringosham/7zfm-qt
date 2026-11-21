@@ -116,6 +116,7 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 
 ## Differences from Windows 7zFM
 
+- **Names Windows can't store** (`: * ? " < > | \`, trailing dots and spaces, CON or NUL) are changed as Windows 7-Zip changes them when extracting to a FAT, exFAT or NTFS volume or an SMB share (`src/core/WinFsNames.cpp`), as Linux's drivers refuse them or store what Windows can't open. Elsewhere they are kept, as Linux allows them. `Z7QT_WINDOWS_NAMES=1` or `0` forces it on or off.
 - **Options.** The System (file associations) and 7-Zip (Explorer menu) pages are left out; use your desktop's "Open with" instead, since the `.desktop` file registers the MIME types. There is no Language page yet.
 - **Not applicable on Linux:** NTFS alternate streams, security descriptors, Mark-of-the-Web, large pages, junctions and WSL links.
 - **View and Edit** with no program set in Options > Editor: F3 opens the file's default application and F4 the desktop's default text editor. Upstream uses Notepad for both.

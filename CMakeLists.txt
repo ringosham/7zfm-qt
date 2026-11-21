@@ -43,12 +43,19 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 # OBJECT, not STATIC: formats and codecs register themselves from static
 # constructors (REGISTER_ARC / REGISTER_CODEC) that nothing references, so a
 # static archive would let the linker drop them all.
+# 7zfm-qt copies of upstream files (src/core) are built instead of the
+# originals; tests/7zz keeps the originals, as the unmodified reference
+set(Z7QT_CORE_SOURCES ${SEVENZIP_CORE_SOURCES})
+list(REMOVE_ITEM Z7QT_CORE_SOURCES
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ExtractingFilePath.cpp)
 add_library(7zcore OBJECT
-  ${SEVENZIP_CORE_SOURCES}
+  ${Z7QT_CORE_SOURCES}
   ${AGENT_SOURCES}
   ${SEVENZIP_SETTINGS_SOURCES}
   src/core/Guids.cpp
   src/core/Seams.cpp
+  src/core/ExtractingFilePath.cpp
+  src/core/WinFsNames.cpp
   src/formats/TarCompound.cpp
   src/formats/ExFatHandler.cpp
   src/formats/LzipHandler.cpp

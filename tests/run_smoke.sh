@@ -130,6 +130,22 @@ check sh -c "rm -rf winpath-out && '$S' x winpath.zip winpath-out >/dev/null && 
 DESC="zip made on Unix: '\\' stays part of the name"
 check sh -c "'$S' ls unixpath.zip | cut -f3 | grep -qxF 'weird\\name.txt'"
 
+# names Windows can't store (src/core/WinFsNames.cpp): kept on Linux file
+# systems, replaced as Windows 7-Zip does on FAT, exFAT, NTFS and SMB
+python3 -I -c '
+import sys, zipfile
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    for n in ["weird\\name.txt", "a:b.txt", "q?.txt", "CON.txt", "trail.", "dir:x/inner.txt"]:
+        i = zipfile.ZipInfo(n); i.create_system = 3; i.external_attr = 0o644 << 16
+        z.writestr(i, b"x\n")
+' winnames.zip
+DESC="Linux destination: names kept"
+check sh -c "rm -rf winnames-posix && Z7QT_WINDOWS_NAMES=0 '$S' x winnames.zip winnames-posix >/dev/null && test -f 'winnames-posix/a:b.txt' && test -f 'winnames-posix/trail.' && test -f 'winnames-posix/dir:x/inner.txt'"
+DESC="Windows destination: names made storable, as Windows 7-Zip does"
+check sh -c "rm -rf winnames-win && Z7QT_WINDOWS_NAMES=1 '$S' x winnames.zip winnames-win >/dev/null && cd winnames-win && test \"\$(find . -type f | LC_ALL=C sort | tr '\\n' ' ')\" = './_CON.txt ./a_b.txt ./dir_x/inner.txt ./q_.txt ./trail_ ./weird_name.txt '"
+DESC="FAT and SMB mounts keep Windows' rules"
+check sh -c "awk '{for (i = 1; i <= NF; i++) if (\$i == \"-\") { print \$5, \$(i + 1); break }}' /proc/self/mountinfo | while read -r m t; do case \$t in vfat|exfat|ntfs3|cifs) [ \"\$('$S' fstype \"\$m\")\" = windows ] || exit 1;; ext4|tmpfs|btrfs|xfs) [ \"\$('$S' fstype \"\$m\")\" = posix ] || exit 1;; esac; done"
+
 # RAR: listing and full extraction through the Agent, compared with the
 # source tree and with upstream 7zz (built from the same sources).
 # test4.rar is store-only (rar 7.x cannot write RAR4); the rest need 'rar'.

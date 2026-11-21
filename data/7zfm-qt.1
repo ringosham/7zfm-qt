@@ -260,6 +260,19 @@ Stopped by the user.
 .PP
 A menu command exits with 2 when it is given no files or a file that does
 not exist, with 1 when adding fails, and otherwise with 0.
+.SH ENVIRONMENT
+.TP
+.B Z7QT_WINDOWS_NAMES
+Extracting to a FAT, exFAT or NTFS volume or an SMB share, names those
+file systems can't store are changed as 7-Zip on Windows changes them:
+.B : * ? \(dq < > | \e
+and control characters become
+.BR _ ,
+trailing dots and spaces likewise, and
+.B _
+goes before names such as CON or NUL. Elsewhere names are kept. Set to 1
+to change them on every destination (a Windows drive mounted through FUSE
+other than ntfs-3g, say), or 0 never to.
 .SH FILES
 .TP
 .I ~/.config/7zfm-qt/7zfm-qt.conf

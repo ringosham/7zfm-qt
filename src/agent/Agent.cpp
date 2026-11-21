@@ -2,6 +2,7 @@
 
 #include "StdAfx.h"
 #include "../formats/WinPathZip.h"
+#include "../core/WinFsNames.h"
 
 #include <wchar.h>
 
@@ -1495,6 +1496,9 @@ Z7_COM7F_IMF(CAgentFolder::Extract(const UInt32 *indices,
 
   if (!testMode && _agentSpec->_isHashHandler)
     return E_NOTIMPL;
+
+  // 7zfm-qt: names Windows can't store, on a FAT, exFAT or NTFS destination
+  CWindowsNamesScope windowsNames(testMode || !path ? FString() : us2fs(path));
 
   CArchiveExtractCallback *extractCallbackSpec = new CArchiveExtractCallback;
   CMyComPtr<IArchiveExtractCallback> extractCallback = extractCallbackSpec;

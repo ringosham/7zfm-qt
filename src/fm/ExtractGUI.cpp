@@ -3,6 +3,7 @@
 
 
 #include "Common/IntToString.h"
+#include "WinFsNames.h"
 #include "Common/StringConvert.h"
 
 #include "Windows/FileDir.h"
@@ -295,6 +296,8 @@ HRESULT ExtractGUI(
   extracter.HashBundle = hb;
   #endif
 
+  // 7zfm-qt: names Windows can't store, on a FAT, exFAT or NTFS destination
+  CWindowsNamesScope windowsNames(options.TestMode ? FString() : options.OutputDir);
   RINOK(extracter.Create(title, hwndParent))
   messageWasDisplayed = extracter.ThreadFinishedOK && extracter.MessagesDisplayed;
   return extracter.Result;
