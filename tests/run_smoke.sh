@@ -234,4 +234,9 @@ check sh -c "! '$S' ls '$G/godot4-enc.pck' >/dev/null 2>&1"
 DESC="Godot: encrypted pack with a wrong key doesn't open"
 check sh -c "! CORE_SMOKE_PASSWORD=ff$(echo $GODOT_KEY | cut -c3-) '$S' ls '$G/godot4-enc.pck' >/dev/null 2>&1"
 
+for f in renpy3.rpa renpy3-p5.rpa renpy2.rpa renpy1.rpi; do
+  DESC="Ren'Py: $f extracts"
+  check same_tree "$G/$f"
+done
+
 exit $fail

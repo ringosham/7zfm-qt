@@ -100,6 +100,7 @@ class CHandlerBase:
 protected:
   CObjectVector<CItem> _items;
   CMyComPtr<IInStream> _stream;
+  CMyComPtr<IInStream> _dataStream;   // the items' data, if not in _stream (another file)
   UInt64 _phySize;
   UInt32 _errorFlags;   // kpv_ErrorFlags_*
   UString _error;       // kpidError
@@ -124,6 +125,7 @@ public:
   // for the handlers: decodes by method (no handler hook)
   static HRESULT DecodeMethod(Byte method, UInt64 aux, const Byte *src, size_t srcSize, Byte *dest, size_t destSize);
   IInStream *Stream() const { return _stream; }
+  IInStream *DataStream() const { return _dataStream ? _dataStream : _stream; }
   HRESULT GetItemStream(unsigned index, CMyComPtr<IInStream> &stream);
 };
 
@@ -134,6 +136,8 @@ HRESULT ReadAt(IInStream *stream, UInt64 offset, void *data, size_t size);
 HRESULT GetStreamSize(IInStream *stream, UInt64 &size);
 // the archive's own name (no folder), if the opener says
 UString GetArcName(IArchiveOpenCallback *callback);
+// a file next to the archive, by name (no stream if there is none)
+HRESULT OpenSiblingFile(IArchiveOpenCallback *callback, const UString &name, CMyComPtr<IInStream> &stream);
 // asks the opener for a password (S_FALSE: none given)
 HRESULT AskPassword(IArchiveOpenCallback *callback, UString &password);
 

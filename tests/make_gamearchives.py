@@ -118,11 +118,56 @@ def godot(out):
     write(out, "godot4-game.exe", exe + pck + struct.pack("<Q", len(pck)) + b"GDPC")
 
 
+# ---------- Ren'Py .rpa (launcher/game/archiver.rpy) ----------
+
+def rpa(version, protocol=2, prefix=0, split=False):
+    """RPA-3.0 with an XOR key, RPA-2.0, or RPA-1.0 (returns (rpi, rpa))"""
+    import pickle
+    key = 0x42424242 if version == 3 else 0
+    header_len = 34 if version == 3 else (25 if version == 2 else 0)
+    data = bytearray(b"Made with Ren'Py." if version > 1 else b"")
+    data += b"\0" * (header_len - len(data)) if len(data) < header_len else b""
+    index = {}
+    for name, content in FILES:
+        pre = content[:prefix] if version == 3 else b""
+        rest = content[len(pre):]
+        entries = []
+        chunks = [rest[:len(rest) // 2], rest[len(rest) // 2:]] if split and len(rest) > 1 else [rest]
+        for n, chunk in enumerate(chunks):
+            off = header_len + len(data) - header_len if False else len(data)
+            data += chunk
+            if version == 3:
+                entries.append((off ^ key, len(chunk) ^ key, pre if n == 0 else b""))
+            else:
+                entries.append((off, len(chunk)))
+        index[name] = entries
+    idx = zlib.compress(pickle.dumps(index, protocol))
+    if version == 1:
+        return idx, bytes(data)
+    offset = len(data)
+    if version == 3:
+        head = b"RPA-3.0 %016x %08x\n" % (offset, key)
+    else:
+        head = b"RPA-2.0 %016x\n" % offset
+    data[0:len(head)] = head
+    return bytes(data) + idx
+
+
+def renpy(out):
+    write(out, "renpy3.rpa", rpa(3, protocol=2, prefix=5))
+    write(out, "renpy3-p5.rpa", rpa(3, protocol=5, prefix=0, split=True))
+    write(out, "renpy2.rpa", rpa(2, protocol=2))
+    rpi, data = rpa(1, protocol=2)
+    write(out, "renpy1.rpi", rpi)
+    write(out, "renpy1.rpa", data)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
     tree(out)
     godot(out)
+    renpy(out)
 
 
 if __name__ == "__main__":

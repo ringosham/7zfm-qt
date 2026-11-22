@@ -64,6 +64,7 @@ add_library(7zcore OBJECT
   src/formats/WinPathZip.cpp
   src/formats/common/ItemArchive.cpp
   src/formats/game/GodotPck.cpp
+  src/formats/game/RpaHandler.cpp
   src/formats/disc/DiscImage.cpp
   src/formats/disc/DiscTracks.cpp
   src/formats/disc/DiscContainers.cpp

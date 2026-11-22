@@ -107,6 +107,21 @@ UString GetArcName(IArchiveOpenCallback *callback)
   return name;
 }
 
+HRESULT OpenSiblingFile(IArchiveOpenCallback *callback, const UString &name, CMyComPtr<IInStream> &stream)
+{
+  stream.Release();
+  Z7_DECL_CMyComPtr_QI_FROM(IArchiveOpenVolumeCallback, volumeCallback, callback)
+  if (!volumeCallback)
+    return S_OK;
+  CMyComPtr<IInStream> s;
+  const HRESULT res = volumeCallback->GetStream(name, &s);
+  if (res == S_FALSE || !s)
+    return S_OK;
+  RINOK(res)
+  stream = s;
+  return S_OK;
+}
+
 HRESULT AskPassword(IArchiveOpenCallback *callback, UString &password)
 {
   password.Empty();
@@ -375,7 +390,7 @@ HRESULT CHandlerBase::GetItemStream(unsigned index, CMyComPtr<IInStream> &stream
   stream.Release();
   CItemStream *s = new CItemStream;
   CMyComPtr<IInStream> ref = s;
-  s->Init(this, &_items[index], _stream);
+  s->Init(this, &_items[index], DataStream());
   stream = ref;
   return S_OK;
 }
@@ -473,6 +488,7 @@ Z7_COM7F_IMF(CHandlerBase::Close())
 {
   _items.Clear();
   _stream.Release();
+  _dataStream.Release();
   _phySize = 0;
   _errorFlags = 0;
   _error.Empty();
@@ -558,7 +574,7 @@ Z7_COM7F_IMF(CHandlerBase::Extract(const UInt32 *indices, UInt32 numItems,
     RINOK(extractCallback->PrepareOperation(askMode))
     CItemStream *spec = new CItemStream;
     CMyComPtr<IInStream> in = spec;
-    spec->Init(this, &item, _stream);
+    spec->Init(this, &item, DataStream());
     UInt32 crc = CRC_INIT_VAL;
     uLong adler = adler32(0, NULL, 0);
     UInt64 got = 0;
