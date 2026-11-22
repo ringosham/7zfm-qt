@@ -162,12 +162,91 @@ def renpy(out):
     write(out, "renpy1.rpa", data)
 
 
+# ---------- RPG Maker ----------
+
+def rgss_xor(data, key):
+    out = bytearray(data)
+    for i in range(len(out)):
+        out[i] ^= (key >> (8 * (i % 4))) & 0xFF
+        if i % 4 == 3:
+            key = (key * 7 + 3) & 0xFFFFFFFF
+    return bytes(out)
+
+
+def rgssad_v1():
+    """XP / VX: Game.rgssad"""
+    key = 0xDEADCAFE
+    out = bytearray(b"RGSSAD\0\x01")
+    step = lambda k: (k * 7 + 3) & 0xFFFFFFFF
+    for name, data in FILES:
+        n = name.replace("/", "\\").encode()
+        out += struct.pack("<I", len(n) ^ key); key = step(key)
+        for c in n:
+            out.append(c ^ (key & 0xFF)); key = step(key)
+        out += struct.pack("<I", len(data) ^ key); key = step(key)
+        out += rgss_xor(data, key)
+    return bytes(out)
+
+
+def rgssad_v3():
+    """VX Ace: Game.rgss3a"""
+    seed = 0x1234567
+    key = (seed * 9 + 3) & 0xFFFFFFFF
+    names = [n.replace("/", "\\").encode() for n, _ in FILES]
+    table = 12 + sum(16 + len(n) for n in names) + 16
+    out = bytearray(b"RGSSAD\0\x03" + struct.pack("<I", seed))
+    blobs = b""
+    offset = table
+    for (name, data), n in zip(FILES, names):
+        fkey = (0x5EED0000 + len(blobs)) & 0xFFFFFFFF
+        out += struct.pack("<IIII", offset ^ key, len(data) ^ key, fkey ^ key, len(n) ^ key)
+        out += bytes(c ^ ((key >> (8 * (i % 4))) & 0xFF) for i, c in enumerate(n))
+        blobs += rgss_xor(data, fkey)
+        offset += len(data)
+    out += struct.pack("<IIII", 0 ^ key, 0, 0, 0)
+    assert len(out) == table
+    return bytes(out) + blobs
+
+
+PNG = (b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0)
+       + struct.pack(">I", zlib.crc32(b"IHDR" + struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0)))
+       + struct.pack(">I", 10) + b"IDAT" + zlib.compress(b"\0\0")[:10] + b"\0\0\0\0"
+       + struct.pack(">I", 0) + b"IEND" + struct.pack(">I", zlib.crc32(b"IEND")))
+OGG = b"OggS\0\x02" + b"\0" * 8 + b"\x01\x02\x03\x04" + b"fake vorbis data" * 8
+MV_KEY = bytes.fromhex("d41d8cd98f00b204e9800998ecf8427e")
+
+
+def rpgmv(data, key=MV_KEY):
+    head = b"RPGMV\0\0\0\0\x03\x01\0\0\0\0\0"
+    enc = bytes(b ^ key[i] for i, b in enumerate(data[:16]))
+    return head + enc + data[16:]
+
+
+def rpgmaker(out):
+    write(out, "Game.rgssad", rgssad_v1())
+    write(out, "Game.rgss3a", rgssad_v3())
+    mv = os.path.join(out, "mv", "www")
+    for d in ("data", "img/pictures", "audio/bgm"):
+        os.makedirs(os.path.join(mv, d), exist_ok=True)
+    with open(os.path.join(mv, "data", "System.json"), "w") as f:
+        f.write('{"gameTitle":"fixture","hasEncryptedImages":true,"encryptionKey":"%s"}' % MV_KEY.hex())
+    write(os.path.join(mv, "img", "pictures"), "pic.rpgmvp", rpgmv(PNG))
+    write(os.path.join(mv, "audio", "bgm"), "song.rpgmvo", rpgmv(OGG))
+    nokey = os.path.join(out, "mv-nokey")
+    os.makedirs(nokey, exist_ok=True)
+    write(nokey, "pic.png_", rpgmv(PNG))
+    write(nokey, "song.ogg_", rpgmv(OGG))
+    write(out, "tree-png.png", PNG)
+    write(out, "tree-ogg.ogg", OGG)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
     tree(out)
     godot(out)
     renpy(out)
+    rpgmaker(out)
 
 
 if __name__ == "__main__":

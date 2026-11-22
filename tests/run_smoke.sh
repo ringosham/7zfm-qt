@@ -239,4 +239,17 @@ for f in renpy3.rpa renpy3-p5.rpa renpy2.rpa renpy1.rpi; do
   check same_tree "$G/$f"
 done
 
+for f in Game.rgssad Game.rgss3a; do
+  DESC="RPG Maker: $f extracts"
+  check same_tree "$G/$f"
+done
+DESC="RPG Maker MV: an image decrypts (key from its PNG header)"
+check sh -c "'$S' cat '$G/mv/www/img/pictures/pic.rpgmvp' pic.png | cmp -s - '$G/tree-png.png'"
+DESC="RPG Maker MZ: an image decrypts (key from its PNG header)"
+check sh -c "'$S' cat '$G/mv-nokey/pic.png_' pic.png | cmp -s - '$G/tree-png.png'"
+DESC="RPG Maker MZ: audio with the key typed in"
+check sh -c "CORE_SMOKE_PASSWORD=d41d8cd98f00b204e9800998ecf8427e '$S' cat '$G/mv-nokey/song.ogg_' song.ogg | cmp -s - '$G/tree-ogg.ogg'"
+DESC="RPG Maker MZ: audio without a key doesn't open"
+check sh -c "! '$S' ls '$G/mv-nokey/song.ogg_' >/dev/null 2>&1"
+
 exit $fail
