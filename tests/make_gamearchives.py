@@ -836,6 +836,68 @@ def installshield(out):
     write(d, "data2.cab", cab2)
 
 
+# ---------- InstallShield setup.exe (src/formats/installer/ISSetup.cpp) ----------
+# The files after the launcher, as ISx reads them: "InstallShield" records
+# (Developer 7 to 2014) or "ISSetupStream" ones (later), the data XORed with
+# a key made from the name, in runs of 1024 bytes (flag 4) or one run (flag
+# 2), and zlib-compressed where the record says.
+
+IS_MAGIC = bytes([0x13, 0x35, 0x86, 0x07])
+
+
+def is_xor(data, seed, run):
+    key = bytes(c ^ IS_MAGIC[i % 4] for i, c in enumerate(seed))
+    out = bytearray()
+    for i, b in enumerate(data):
+        k = key[((i % run) if run else i) % len(key)]
+        t = (k ^ ~b) & 0xFF
+        out.append(((t << 4) | (t >> 4)) & 0xFF)
+    return bytes(out)
+
+
+def issetup(stream, kind):
+    """kind: plain, xor (InstallShield records, every coding), or the
+    ISSetupStream type (2 or 4)"""
+    stub = b"MZ" + b"\0" * 0x3FE
+    head = (b"ISSetupStream\0" if stream else b"InstallShield\0") + struct.pack("<HI", len(FILES), kind if stream else 0)
+    out = stub + head.ljust(46, b"\0")
+    for i, (name, content) in enumerate(FILES):
+        win = name.replace("/", "\\")
+        flags, packed, compressed = 0, content, 0
+        if kind != "plain":
+            # each file coded another way
+            mode = i % 4
+            if mode in (0, 2):
+                flags = 6
+            elif mode == 1 and not stream:
+                flags = 2
+            if mode >= 2 or stream:
+                packed, compressed = zlib.compress(content, 9), 1
+        seed = win.encode() if not stream else win.encode("utf-8")
+        if flags & 4:
+            packed = is_xor(packed, seed, 1024)
+        elif flags & 2:
+            packed = is_xor(packed, seed, 0)
+        if not stream:
+            rec = win.encode().ljust(260, b"\0") + struct.pack("<III", flags, 0, len(packed))
+            rec = (rec + b"\0" * 8 + struct.pack("<H", compressed)).ljust(312, b"\0")
+        else:
+            wname = win.encode("utf-16-le")
+            rec = struct.pack("<IIHI", len(wname), flags, 0, len(packed)) + b"\0" * 8 + struct.pack("<H", compressed)
+            if kind == 4:
+                rec += b"\0" * 24
+            rec += wname
+        out += rec + packed
+    return out + b"signature after the files"
+
+
+def issetups(out):
+    write(out, "issetup-plain.exe", issetup(False, "plain"))
+    write(out, "issetup-xor.exe", issetup(False, "xor"))
+    write(out, "issetup-stream.exe", issetup(True, 2))
+    write(out, "issetup-stream4.exe", issetup(True, 4))
+
+
 # ---------- MagicISO .uif (src/formats/disc/DiscUif.cpp) ----------
 # The ISO inside is the tree made by xorriso (SOURCE_DATE_EPOCH fixed); the
 # image is cut into runs of 128 sectors as MagicISO 5.5 cuts it, each
@@ -988,6 +1050,7 @@ def main():
     unity(out)
     inno(out)
     installshield(out)
+    issetups(out)
     magiciso(out)
 
 

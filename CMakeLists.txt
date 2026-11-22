@@ -75,6 +75,7 @@ add_library(7zcore OBJECT
   src/formats/installer/InnoSetup.cpp
   src/formats/installer/InstallShield.cpp
   src/formats/installer/InstallShield3.cpp
+  src/formats/installer/ISSetup.cpp
   src/formats/installer/blast.c
   src/formats/disc/DiscImage.cpp
   src/formats/disc/DiscTracks.cpp

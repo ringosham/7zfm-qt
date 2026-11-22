@@ -64,7 +64,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %endif
 
 %files
-%license LICENSE external/7zip/DOC/unRarLicense.txt src/formats/disc/LICENSE.chd src/formats/installer/LICENSE.innoextract src/formats/installer/LICENSE.unshield src/formats/LICENSE.acefile
+%license LICENSE external/7zip/DOC/unRarLicense.txt src/formats/disc/LICENSE.chd src/formats/installer/LICENSE.innoextract src/formats/installer/LICENSE.unshield src/formats/installer/LICENSE.isx src/formats/LICENSE.acefile
 %doc README.md
 %{_bindir}/%{name}
 %{_mandir}/man1/%{name}.1*

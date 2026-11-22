@@ -56,6 +56,11 @@ License: Zlib
 Comment: a port of innoextract; the full notice is
  src/formats/installer/LICENSE.innoextract
 
+Files: src/formats/installer/ISSetup.cpp
+Copyright: 2017 lifenjoiner (ISx)
+License: Expat
+Comment: follows ISx; the full notice is src/formats/installer/LICENSE.isx
+
 Files: src/formats/installer/blast.c src/formats/installer/blast.h
 Copyright: 2003, 2012, 2013 Mark Adler
 License: Zlib

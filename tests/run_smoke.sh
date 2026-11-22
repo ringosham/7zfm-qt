@@ -295,6 +295,14 @@ for f in data1.cab data2.cab; do
   check same_tree "$G/installshield5/$f"
 done
 
+# InstallShield setup.exe (src/formats/installer/ISSetup.cpp): the files
+# after the launcher, plain, XORed both ways and compressed, in both record
+# layouts
+for f in issetup-plain.exe issetup-xor.exe issetup-stream.exe issetup-stream4.exe; do
+  DESC="InstallShield setup: $f extracts"
+  check same_tree "$G/$f"
+done
+
 # InstallShield 3 (src/formats/installer/InstallShield3.cpp): made from the
 # tree by InstallShield 3.0's ICOMP.EXE, the split sets by its SPLIT.EXE, with
 # a file of their own (noise.bin stored, words.txt compressed) running over
