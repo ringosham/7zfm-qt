@@ -3,4 +3,5 @@ external/7zip/DOC/unRarLicense.txt
 src/formats/disc/LICENSE.chd
 src/formats/installer/LICENSE.innoextract
 src/formats/installer/LICENSE.unshield
+src/formats/installer/LICENSE.isx
 src/formats/LICENSE.acefile
