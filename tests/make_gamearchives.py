@@ -670,6 +670,78 @@ def inno(out):
     write(out, "inno6-setup.exe", inno_setup())
 
 
+# ---------- InstallShield cabinet, version 6 (unshield's reading) ----------
+
+def is_obfuscate(data):
+    out = bytearray()
+    for i, c in enumerate(data):
+        b = (c + (i % 0x47)) & 0xFF
+        b = ((b << 2) | (b >> 6)) & 0xFF
+        out.append(b ^ 0xD5)
+    return bytes(out)
+
+
+def installshield_cab():
+    dirs = sorted(set(n.rpartition("/")[0] for n, _ in FILES))
+    desc_off = 0x200
+    table_rel = 0x300                       # the file table, from the descriptor
+    strings = b""
+    offsets = []
+    def add_string(t):
+        nonlocal strings
+        off = len(strings)
+        strings += t.encode() + b"\0"
+        return off
+    count = len(dirs) + len(FILES)
+    head_len = count * 4                    # name offsets, then strings, then records
+    dir_name_offs = [add_string(d.replace("/", "\\")) for d in dirs]
+    file_name_offs = [add_string(n.rpartition("/")[2]) for n, _ in FILES]
+    rec_rel = head_len + len(strings)
+    data_start = desc_off + table_rel + rec_rel + 0x57 * len(FILES)
+    data = b""
+    recs = b""
+    for i, (name, content) in enumerate(FILES):
+        obfuscated = name.endswith("text.txt")
+        if obfuscated:
+            stored, flags, pack = is_obfuscate(content), 2, len(content)
+        else:
+            stored = b""
+            for k in range(0, max(len(content), 1), 32768):
+                c = zlib.compressobj(9, zlib.DEFLATED, -15)
+                block = c.compress(content[k:k + 32768]) + c.flush()
+                stored += struct.pack("<H", len(block)) + block
+            flags, pack = 4, len(stored)
+        off = data_start + len(data)
+        data += stored
+        d = dirs.index(name.rpartition("/")[0])
+        rec = struct.pack("<HQQQ", flags, len(content), pack, off) + hashlib.md5(content).digest() + b"\0" * 16
+        rec += struct.pack("<IH", head_len + file_name_offs[i], d) + b"\0" * 12
+        rec += struct.pack("<IIBH", 0, 0, 0, 1)
+        assert len(rec) == 0x57
+        recs += rec
+    names = b"".join(struct.pack("<I", head_len + o) for o in dir_name_offs) + b"".join(struct.pack("<I", head_len + o) for o in file_name_offs)
+    table = names + strings + recs
+    desc = bytearray(0x30 + 0xE + 71 * 8)
+    struct.pack_into("<I", desc, 0x0C, table_rel)
+    struct.pack_into("<III", desc, 0x14, len(table), len(table), len(dirs))
+    struct.pack_into("<II", desc, 0x28, len(FILES), rec_rel)
+    common = struct.pack("<IIIII", 0x28635349, 0x01006000, 0, desc_off, len(desc))
+    volume = struct.pack("<IIII", data_start, 0, 0, len(FILES) - 1) + b"\0" * 48
+    out = bytearray(common + volume)
+    out += b"\0" * (desc_off - len(out))
+    out += desc
+    out += b"\0" * (desc_off + table_rel - len(out))
+    out += table
+    assert len(out) == data_start
+    return bytes(out) + data
+
+
+def installshield(out):
+    d = os.path.join(out, "installshield")
+    os.makedirs(d, exist_ok=True)
+    write(d, "data1.cab", installshield_cab())
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -681,6 +753,7 @@ def main():
     bethesda(out)
     unity(out)
     inno(out)
+    installshield(out)
 
 
 if __name__ == "__main__":

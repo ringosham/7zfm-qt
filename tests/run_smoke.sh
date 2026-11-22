@@ -288,4 +288,7 @@ check sh -c "rm -rf '$T/inno'; '$S' x '$G/inno6-setup.exe' '$T/inno' >/dev/null 
 DESC="core_smoke t tests without writing"
 check sh -c "'$S' t '$G/inno6-setup.exe' | grep -q 'errors: 0'"
 
+DESC="InstallShield: a version 6 cabinet (deflate and obfuscated files) extracts, MD5s checked"
+check same_tree "$G/installshield/data1.cab"
+
 exit $fail
