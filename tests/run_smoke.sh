@@ -290,6 +290,10 @@ check sh -c "'$S' t '$G/inno6-setup.exe' | grep -q 'errors: 0'"
 
 DESC="InstallShield: a version 6 cabinet (deflate and obfuscated files) extracts, MD5s checked"
 check same_tree "$G/installshield/data1.cab"
+for f in data1.cab data2.cab; do
+  DESC="InstallShield: version 5 cabinets with whole deflate streams, a file split over them ($f)"
+  check same_tree "$G/installshield5/$f"
+done
 
 # PowerISO DAA (src/formats/disc/DiscPowerIso.cpp): made by PowerISO 1.6 for
 # Linux (version 0x100) and PowerISO 9.5's piso.exe (0x110, split in 1 MB parts)

@@ -738,10 +738,87 @@ def installshield_cab():
     return bytes(out) + data
 
 
+def installshield5_old():
+    """data1.cab and data2.cab as InstallShield 5 wrote InstallShield 3's
+    32-bit edition: version 0x01000004, each file one raw deflate stream
+    (unshield -O), text.txt split over the two cabinets"""
+    dirs = sorted(set(n.rpartition("/")[0] for n, _ in FILES))
+    desc_off = 0x200
+    table_rel = 0x300
+    rec_size = 0x3A
+    strings = b""
+    def add_string(t):
+        nonlocal strings
+        off = len(strings)
+        strings += t.encode() + b"\0"
+        return off
+    count = len(dirs) + len(FILES)
+    head_len = count * 4
+    dir_name_offs = [add_string(d.replace("/", "\\")) for d in dirs]
+    file_name_offs = [add_string(n.rpartition("/")[2]) for n, _ in FILES]
+    rec_rel = head_len + len(strings)
+    data_start = desc_off + table_rel + rec_rel + rec_size * len(FILES)
+    packed = []
+    for name, content in FILES:
+        c = zlib.compressobj(9, zlib.DEFLATED, -15)
+        packed.append(c.compress(content) + c.flush())
+    split = [n for n, _ in FILES].index("data/sub/text.txt")
+    assert split == len(FILES) - 2
+    # data1: the files up to text.txt and its first half; data2: the rest
+    first_part = len(packed[split]) // 2
+    data1 = b""
+    offsets = []
+    for i in range(split):
+        offsets.append(data_start + len(data1))
+        data1 += packed[i]
+    offsets.append(data_start + len(data1))
+    data1 += packed[split][:first_part]
+    data2_start = 0x200
+    data2 = packed[split][first_part:]
+    offsets.append(data2_start + len(data2))
+    data2 += packed[split + 1]
+    recs = b""
+    for i, (name, content) in enumerate(FILES):
+        d = dirs.index(name.rpartition("/")[0])
+        rec = struct.pack("<IIHII", head_len + file_name_offs[i], d, 4, len(content), len(packed[i]))
+        rec += b"\0" * 0x14 + struct.pack("<I", offsets[i])
+        recs += rec.ljust(rec_size, b"\0")
+    # up to version 5: the folders' name offsets, then the file records'
+    names = b"".join(struct.pack("<I", head_len + o) for o in dir_name_offs)
+    names += b"".join(struct.pack("<I", rec_rel + i * rec_size) for i in range(len(FILES)))
+    table = names + strings + recs
+    desc = bytearray(0x30 + 0xE + 71 * 8)
+    struct.pack_into("<I", desc, 0x0C, table_rel)
+    struct.pack_into("<III", desc, 0x14, len(table), len(table), len(dirs))
+    struct.pack_into("<I", desc, 0x28, len(FILES))
+    version = 0x01000004
+    t = FILES[split]
+    # data_offset, 0, first and last file, then the first's and the last's
+    # offset, size and packed size where they are split
+    vol1 = struct.pack("<IIIIIIIIII", data_start, 0, 0, split, 0, 0, 0,
+                       offsets[split], len(t[1]), first_part)
+    out1 = bytearray(struct.pack("<IIIII", 0x28635349, version, 2, desc_off, len(desc)) + vol1)
+    out1 += b"\0" * (desc_off - len(out1))
+    out1 += desc
+    out1 += b"\0" * (desc_off + table_rel - len(out1))
+    out1 += table
+    assert len(out1) == data_start
+    vol2 = struct.pack("<IIIIIIIIII", data2_start, 0, split, len(FILES) - 1, data2_start, len(t[1]),
+                       len(packed[split]) - first_part, 0, 0, 0)
+    out2 = bytearray(struct.pack("<IIIII", 0x28635349, version, 3, desc_off, 0) + vol2)
+    out2 += b"\0" * (data2_start - len(out2))
+    return bytes(out1) + data1, bytes(out2) + data2
+
+
 def installshield(out):
     d = os.path.join(out, "installshield")
     os.makedirs(d, exist_ok=True)
     write(d, "data1.cab", installshield_cab())
+    d = os.path.join(out, "installshield5")
+    os.makedirs(d, exist_ok=True)
+    cab1, cab2 = installshield5_old()
+    write(d, "data1.cab", cab1)
+    write(d, "data2.cab", cab2)
 
 
 # ---------- MagicISO .uif (src/formats/disc/DiscUif.cpp) ----------

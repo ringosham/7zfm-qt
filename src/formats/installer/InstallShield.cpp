@@ -10,8 +10,11 @@
 //   name, directory, links to an identical file, and the volume (cabinet
 //   number) holding the data. Each cabinet starts with a volume header that
 //   says where the first and last files it holds a part of are.
-//   A compressed file is blocks of a 16-bit length and raw deflate data; an
-//   obfuscated one is XORed with a running key (unshield_deobfuscate).
+//   A compressed file is blocks of a 16-bit length and raw deflate data, or
+//   up to version 5 one raw deflate stream (unshield -O; InstallShield 5's
+//   own cabinets, version 0x01000004); an obfuscated one is XORed with a
+//   running key (unshield_deobfuscate). Up to version 5 the file table
+//   doesn't say which cabinet holds a file: the volume headers do.
 //
 // The cabinet opened may be the .hdr or any .cab of the set; the header
 // comes from data1.hdr when there is one, the data from dataN.cab.
@@ -278,12 +281,13 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
     _files.Add(file);
   }
 
-  // the cabinets: dataN.cab, as many as the files name
+  // the cabinets: dataN.cab, as many as the files name; up to version 5
+  // the files don't say, so all there are
   unsigned maxVolume = 1;
   FOR_VECTOR (i, _files)
     maxVolume = MyMax(maxVolume, _files[i].Volume);
   _volumes.Add(CMyComPtr<IInStream>());
-  for (unsigned v = 1; v <= maxVolume + 1 && v < 256; v++)
+  for (unsigned v = 1; v < 256; v++)
   {
     CMyComPtr<IInStream> s;
     UString name = prefix;
@@ -293,6 +297,8 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
       s = stream;
     else
       RINOK(NItemArc::OpenSiblingFile(callback, name, s))
+    if (!s && v > maxVolume + 1 && (_major > 5 || v > 1))
+      break;
     _volumes.Add(s);
   }
   _phySize = fileSize;
@@ -417,6 +423,34 @@ bool CReader::Read(Byte *data, size_t size)
   return true;
 }
 
+// whether a file's data starts as blocks of a 16-bit length and raw
+// deflate data; up to version 5 it may be one deflate stream instead
+static bool FirstBlockOk(CHandler *arc, const CFile &f)
+{
+  CReader reader(arc, &f);
+  Byte lb[2];
+  if (f.PackSize < 2 || !reader.Open() || !reader.Read(lb, 2))
+    return true;   // fails as before
+  const unsigned len = GetUi16(lb);
+  if (len == 0 || len > f.PackSize - 2)
+    return false;
+  CByteBuffer in(len + 1), outBuf((size_t)1 << 17);
+  if (!reader.Read(in, len))
+    return true;
+  in[len] = 0;
+  z_stream z;
+  memset(&z, 0, sizeof(z));
+  if (inflateInit2(&z, -MAX_WBITS) != Z_OK)
+    return true;
+  z.next_in = in;
+  z.avail_in = len + 1;
+  z.next_out = outBuf;
+  z.avail_out = (uInt)outBuf.Size();
+  const int r = inflate(&z, Z_FINISH);
+  inflateEnd(&z);
+  return r == Z_STREAM_END;
+}
+
 // decodes file (index) into (out), checking its MD5 from version 6
 static HRESULT DecodeFile(CHandler *arc, const CFile &f, ISequentialOutStream *out, Int32 &opRes)
 {
@@ -432,7 +466,80 @@ static HRESULT DecodeFile(CHandler *arc, const CFile &f, ISequentialOutStream *o
   UInt64 written = 0;
   const size_t kBuf = 1 << 16;
   CByteBuffer in(kBuf + 1), outBuf(kBuf * 2);
-  if (f.Flags & kFile_Compressed)
+  if ((f.Flags & kFile_Compressed) && arc->_major <= 5 && !FirstBlockOk(arc, f))
+  {
+    // the old layout (unshield -O): one raw deflate stream
+    CReader r2(arc, &f);
+    if (!r2.Open())
+    {
+      opRes = NExtract::NOperationResult::kUnavailable;
+      return S_OK;
+    }
+    z_stream z;
+    memset(&z, 0, sizeof(z));
+    if (inflateInit2(&z, -MAX_WBITS) != Z_OK)
+      return E_OUTOFMEMORY;
+    UInt64 left = f.PackSize;
+    bool padded = false;
+    int ret = Z_OK;
+    HRESULT hr = S_OK;
+    while (ret == Z_OK)
+    {
+      if (z.avail_in == 0)
+      {
+        const size_t n = (size_t)MyMin(left, (UInt64)kBuf);
+        if (n != 0)
+        {
+          if (!r2.Read(in, n))
+          {
+            ret = Z_BUF_ERROR;
+            break;
+          }
+          left -= n;
+          z.avail_in = (uInt)n;
+        }
+        else if (!padded)
+        {
+          // as unshield: inflate may want a byte more
+          in[0] = 0;
+          z.avail_in = 1;
+          padded = true;
+        }
+        else
+          break;
+        z.next_in = in;
+      }
+      z.next_out = outBuf;
+      z.avail_out = (uInt)outBuf.Size();
+      ret = inflate(&z, Z_NO_FLUSH);
+      const size_t n = outBuf.Size() - z.avail_out;
+      if (ret == Z_BUF_ERROR && n == 0 && z.avail_in != 0)
+        break;
+      if (ret == Z_BUF_ERROR)
+        ret = Z_OK;
+      if (written + n > f.Size)
+      {
+        ret = Z_DATA_ERROR;
+        break;
+      }
+      Md5_Update(&md5, outBuf, n);
+      if (out && n != 0)
+      {
+        hr = WriteStream(out, outBuf, n);
+        if (hr != S_OK)
+          break;
+      }
+      written += n;
+    }
+    inflateEnd(&z);
+    RINOK(hr)
+    if (ret != Z_STREAM_END && !(ret == Z_OK && padded && written == f.Size))
+    {
+      opRes = NExtract::NOperationResult::kDataError;
+      return S_OK;
+    }
+  }
+  else if (f.Flags & kFile_Compressed)
   {
     UInt64 left = f.PackSize;
     while (left > 0)
