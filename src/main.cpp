@@ -171,8 +171,15 @@ int main(int argc, char *argv[])
             // a drop on a target that reads the URLs: extracted on request
             std::unique_ptr<QMimeData> mime(w->GetPanel()->CreateDragData());
             if (mime && !w->GetPanel()->DragItemsExtracted())
+            {
+              QFile list(a.mid(7) + QLatin1String("/urls.txt"));
+              if (list.open(QIODevice::WriteOnly))
+                for (const QUrl &u : mime->urls())
+                  list.write(u.toLocalFile().toUtf8() + '\n');
+              list.close();
               for (const QUrl &u : mime->urls())
                 QFile::copy(u.toLocalFile(), a.mid(7) + QLatin1Char('/') + u.fileName());
+            }
           }
           return;
         }

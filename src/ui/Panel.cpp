@@ -1776,8 +1776,10 @@ QMimeData *Panel::CreateDragData()
     return nullptr;
   UString dir = ToU(temp->path());
   NName::NormalizeDirPathPrefix(dir);
+  // as upstream: "." and ".." (a crafted archive's folder names) become "_",
+  // or the URL would name the temp folder's parent
   FOR_VECTOR (i, indices)
-    urls << QUrl::fromLocalFile(ToQ(dir + GetItemName(indices[i])));
+    urls << QUrl::fromLocalFile(ToQ(dir + Get_Correct_FsFile_Name(GetItemName(indices[i]))));
   _dragIndices = indices;
   _dragFolder = _folder;
   _dragTemp = temp;

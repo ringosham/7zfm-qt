@@ -111,6 +111,18 @@ mkdir -p "$WORK/dnduri"
 check run "$WORK/add/content.7z/content/" --select drop.txt --action "dnduri:$WORK/dnduri" --keys "@wait" --screenshot "$WORK/d2.png"
 check grep -q dropped "$WORK/dnduri/drop.txt"
 
+if command -v python3 >/dev/null 2>&1; then
+  DESC="GUI: dragging a crafted zip's '..' folder names a file in the temp folder, not its parent"
+  mkdir -p "$WORK/dotdot"
+  python3 -I -c 'import zipfile, sys
+with zipfile.ZipFile(sys.argv[1], "w") as z:
+    z.writestr("../escape.txt", "x"); z.writestr("ok.txt", "x")' "$WORK/dotdot.zip"
+  check run "$WORK/dotdot.zip" --select .. --action "dnduri:$WORK/dotdot" --keys "@wait" --screenshot "$WORK/d3.png"
+  check grep -q "/7zO[^/]*/_$" "$WORK/dotdot/urls.txt"
+else
+  echo "SKIP: drag of a '..' folder (no python3)"
+fi
+
 if command -v dbus-run-session >/dev/null 2>&1; then
   DESC="GUI: drop on a KIO target (Ark DnD D-Bus call) extracts there, not at drag start"
   mkdir -p "$WORK/dnd"
