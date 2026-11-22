@@ -11,6 +11,12 @@ check() { if "$@"; then echo "PASS: $DESC"; else echo "FAIL: $DESC"; fail=1; fi;
 DESC="Rar and Rar5 handlers are registered"
 check sh -c "'$S' formats | grep -qx Rar && '$S' formats | grep -qx Rar5"
 
+# The registry (kNumArcsMax in src/core/LoadCodecs.cpp) drops formats past
+# its size without a word: when it is full, double it
+DESC="the format registry has room (else double kNumArcsMax in src/core/LoadCodecs.cpp)"
+# (Hash is listed too, but isn't one of them)
+check sh -c "[ \$('$S' formats | grep -vx Hash | wc -l) -lt 144 ]"
+
 for img in disk.img disk.vhdx disk.vmdk disk.qcow2; do
   DESC="$img lists GPT partitions"
   check sh -c "'$S' ls $img | grep -q '0.fat.fat' && '$S' ls $img | grep -q '1.linux.img'"

@@ -47,7 +47,8 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 # originals; tests/7zz keeps the originals, as the unmodified reference
 set(Z7QT_CORE_SOURCES ${SEVENZIP_CORE_SOURCES})
 list(REMOVE_ITEM Z7QT_CORE_SOURCES
-  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ExtractingFilePath.cpp)
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ExtractingFilePath.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/LoadCodecs.cpp)
 add_library(7zcore OBJECT
   ${Z7QT_CORE_SOURCES}
   ${AGENT_SOURCES}
@@ -55,6 +56,7 @@ add_library(7zcore OBJECT
   src/core/Guids.cpp
   src/core/Seams.cpp
   src/core/ExtractingFilePath.cpp
+  src/core/LoadCodecs.cpp
   src/core/WinFsNames.cpp
   src/formats/TarCompound.cpp
   src/formats/ExFatHandler.cpp
