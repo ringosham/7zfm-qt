@@ -190,12 +190,14 @@ int main(int argc, char **argv)
   }
   if (argc < 3)
   {
-    fprintf(stderr, "usage: core_smoke formats | ls|cat <file> [item ...] | x <file> <outdir>\n");
+    fprintf(stderr, "usage: core_smoke formats | ls|cat <file> [item ...] | x <file> <outdir> | t <file>\n");
     return 2;
   }
   const bool cat = strcmp(argv[1], "cat") == 0;
-  const bool extract = strcmp(argv[1], "x") == 0;
-  if (extract && argc != 4)
+  // t: x without writing anything (Test)
+  const bool testOnly = strcmp(argv[1], "t") == 0;
+  const bool extract = strcmp(argv[1], "x") == 0 || testOnly;
+  if (extract && argc != 4 && !(testOnly && argc == 3))
     return 2;
 
   COpenUI openUI;
@@ -229,13 +231,13 @@ int main(int argc, char **argv)
     folder.QueryInterface(IID_IArchiveFolder, &arcFolder);
     if (!arcFolder)
       return 1;
-    FString outDir = us2fs(GetUnicodeString(argv[3]));
+    FString outDir = us2fs(GetUnicodeString(testOnly ? "." : argv[3]));
     NWindows::NFile::NName::NormalizeDirPathPrefix(outDir);
     CExtractCb *cbSpec = new CExtractCb;
     CMyComPtr<IFolderArchiveExtractCallback> cb = cbSpec;
     res = arcFolder->Extract(indices.ConstData(), indices.Size(), BoolToInt(false), BoolToInt(false),
         NExtract::NPathMode::kFullPaths, NExtract::NOverwriteMode::kOverwrite,
-        fs2us(outDir), BoolToInt(false), cb);
+        fs2us(outDir), BoolToInt(testOnly), cb);
     printf("files: %u, errors: %u\n", cbSpec->NumFiles, cbSpec->NumErrors);
     if (res != S_OK)
     {

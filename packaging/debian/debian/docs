@@ -1,3 +1,4 @@
 LICENSE
 external/7zip/DOC/unRarLicense.txt
 src/formats/disc/LICENSE.chd
+src/formats/installer/LICENSE.innoextract

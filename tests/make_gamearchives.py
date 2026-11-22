@@ -582,6 +582,94 @@ def unity(out):
     write(out, "tree-pixels.tga", unity_tga())
 
 
+# ---------- Inno Setup 6.0.0 (u), as innoextract reads it ----------
+
+def inno_block(data):
+    """setup-0 block: CRC-32, size, LZMA flag, then 4 KB parts behind CRC-32s"""
+    import lzma
+    filt = [{"id": lzma.FILTER_LZMA1, "dict_size": 1 << 16, "lc": 3, "lp": 0, "pb": 2}]
+    packed = b"\x5d" + struct.pack("<I", 1 << 16) + lzma.compress(data, format=lzma.FORMAT_RAW, filters=filt)
+    body = b""
+    for i in range(0, len(packed), 4096):
+        part = packed[i:i + 4096]
+        body += struct.pack("<I", zlib.crc32(part)) + part
+    head = struct.pack("<IB", len(body), 1)
+    return struct.pack("<I", zlib.crc32(head)) + head + body
+
+
+def inno_setup():
+    u = lambda t: (lambda b: struct.pack("<I", len(b)) + b)(t.encode("utf-16-le"))
+    a = lambda t: struct.pack("<I", len(t)) + t
+    files = FILES
+    h = b""
+    h += u("Fixture") + u("Fixture 1.0") + u("fixture") + u("") + u("") + u("") + u("")  # name .. support phone
+    h += u("") + u("") + u("1.0")                       # support url, updates url, version
+    h += u("{pf}\\Fixture") + u("Fixture")             # default dir, group
+    h += u("setup")                                     # base filename
+    h += u("{app}") + u("") + u("")                     # uninstall files dir, name, icon
+    h += u("") + u("") + u("") + u("")                  # mutex, user name, organisation, serial
+    h += u("") + u("") + u("") + u("")                  # readme, contact, comments, modify path
+    h += u("yes") + u("yes") + u("") + u("") + u("") + u("")   # uninstall key, uninstallable, close filter, setup mutex, env, assoc
+    h += a(b"") + a(b"") + a(b"")                       # license, info before, info after
+    h += a(b"")                                         # compiled code
+    counts = [1, 0, 0, 0, 0, 0, 0, len(files), len(files), 0, 0, 0, 0, 0, 0, 0]
+    h += struct.pack("<16I", *counts)
+    h += b"\0" * 20                                     # windows versions
+    h += struct.pack("<II", 0, 0)                       # back colours
+    h += struct.pack("<BII", 0, 100, 100) + b"\0"       # wizard style, resize; alpha format
+    h += b"\0" * 20 + b"\0" * 8                         # password hash, salt
+    h += struct.pack("<qI", 0, 1)                       # extra disk space, slices per disk
+    h += bytes([0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0]) + struct.pack("<Q", 0)
+    # log mode, dir warning, privileges, privilege overrides (5.7+), language dialog, detection,
+    # LZMA, architectures x2, dir page, group page; display size
+    h += b"\0" * 6                                      # 48 header flags in 6.0.0
+    lang = u("default") + u("English") + u("") + u("") + u("") + u("") + a(b"") + a(b"") + a(b"") + a(b"")
+    lang += struct.pack("<IIIIIB", 0x409, 8, 12, 12, 8, 0)
+    h += lang
+    for name, data in files:
+        e = u("") + u("{app}\\" + name.replace("/", "\\")) + u("") + u("")
+        e += u("") + u("") + u("") + u("") + u("") + u("")   # condition
+        e += b"\0" * 20
+        e += struct.pack("<IIQh", files.index((name, data)), 0, 0, -1)
+        e += b"\0" * 4 + b"\0"                          # 32 file flags, file type
+        h += e
+    h += struct.pack("<I", 0) + struct.pack("<I", 0)    # wizard images, small images
+    # the data: files 0-2 in one LZMA chunk, file 3 in a stored one
+    import lzma
+    filt = [{"id": lzma.FILTER_LZMA1, "dict_size": 1 << 16, "lc": 3, "lp": 0, "pb": 2}]
+    solid = b"".join(d for _, d in files[:3])
+    chunk1 = b"zlb\x1a" + b"\x5d" + struct.pack("<I", 1 << 16) + lzma.compress(solid, format=lzma.FORMAT_RAW, filters=filt)
+    chunk2 = b"zlb\x1a" + files[3][1]
+    data2 = b""
+    off = 0
+    for n, (name, d) in enumerate(files):
+        if n < 3:
+            chunk_off, file_off, chunk_size, comp = 0, off, len(chunk1) - 4, 1
+            off += len(d)
+        else:
+            chunk_off, file_off, chunk_size, comp = len(chunk1), 0, len(chunk2) - 4, 0
+        data2 += struct.pack("<IIIQQQ", 0, 0, chunk_off, file_off, len(d), chunk_size)
+        data2 += hashlib.sha1(d).digest() + struct.pack("<q", 132000000000000000) + struct.pack("<II", 0, 0)
+        # flags: VersionInfoValid, NotValid, TimeStampInUTC, IsUninstallerExe, CallInstructionOptimized,
+        # Touch, ChunkEncrypted, ChunkCompressed (bit 7), SolidBreak, Sign, SignOnce
+        data2 += struct.pack("<H", (1 << 7) if comp else 0)
+    setup0 = b"Inno Setup Setup Data (6.0.0) (u)".ljust(64, b"\0") + inno_block(h) + inno_block(data2)
+    exe = bytearray(b"MZ" + b"\0" * 0x7E)
+    table_off = len(exe)
+    header_off = table_off + 64
+    data_off = header_off + len(setup0)
+    table = bytes([ord("r"), ord("D"), ord("l"), ord("P"), ord("t"), ord("S"), 0xCD, 0xE6, 0xD7, ord("{"), 0x0B, ord("*")])
+    table += struct.pack("<IIIIIII", 1, 0, 0, 0, 0, header_off, data_off)
+    table += struct.pack("<I", zlib.crc32(table))
+    struct.pack_into("<III", exe, 0x30, 0x6F6E6E49, table_off, table_off ^ 0xFFFFFFFF)
+    exe += table.ljust(64, b"\0")
+    return bytes(exe) + setup0 + chunk1 + chunk2
+
+
+def inno(out):
+    write(out, "inno6-setup.exe", inno_setup())
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -592,6 +680,7 @@ def main():
     kirikiri(out)
     bethesda(out)
     unity(out)
+    inno(out)
 
 
 if __name__ == "__main__":

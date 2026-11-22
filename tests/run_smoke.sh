@@ -283,4 +283,9 @@ for f in unreal-v1.pak unreal-v3-zlib.pak unreal-v5-zlib.pak unreal-v7-gzip.pak 
   check same_tree "$G/$f"
 done
 
+DESC="Inno Setup: a 6.0 installer (LZMA and stored chunks) extracts, checksums checked"
+check sh -c "rm -rf '$T/inno'; '$S' x '$G/inno6-setup.exe' '$T/inno' >/dev/null 2>&1 && diff -r '$G/tree' '$T/inno/app' >/dev/null"
+DESC="core_smoke t tests without writing"
+check sh -c "'$S' t '$G/inno6-setup.exe' | grep -q 'errors: 0'"
+
 exit $fail

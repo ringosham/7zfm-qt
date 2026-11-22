@@ -50,6 +50,12 @@ Copyright: Aaron Giles
 License: BSD-3-clause
 Comment: follows libchdr; the full notice is src/formats/disc/LICENSE.chd
 
+Files: src/formats/installer/InnoSetup.cpp
+Copyright: 2011-2020 Daniel Scharrer (innoextract)
+License: Zlib
+Comment: a port of innoextract; the full notice is
+ src/formats/installer/LICENSE.innoextract
+
 Files: external/7zip/C/Xxh64.c
 Copyright: 2012-2021 Yann Collet
            2023-2026 Igor Pavlov
@@ -118,3 +124,20 @@ License: BSD-2-clause
  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  POSSIBILITY OF SUCH DAMAGE.
+
+License: Zlib
+ This software is provided 'as-is', without any express or implied
+ warranty. In no event will the author(s) be held liable for any damages
+ arising from the use of this software.
+ .
+ Permission is granted to anyone to use this software for any purpose,
+ including commercial applications, and to alter it and redistribute it
+ freely, subject to the following restrictions:
+ .
+ 1. The origin of this software must not be misrepresented; you must not
+    claim that you wrote the original software. If you use this software
+    in a product, an acknowledgment in the product documentation would be
+    appreciated but is not required.
+ 2. Altered source versions must be plainly marked as such, and must not be
+    misrepresented as being the original software.
+ 3. This notice may not be removed or altered from any source distribution.

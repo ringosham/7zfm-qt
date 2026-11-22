@@ -6,7 +6,7 @@ pkgrel=1
 pkgdesc="Qt port of the 7-Zip File Manager: opens archives, disk images and partitions in place, including nested ones"
 arch=('x86_64' 'aarch64')
 url="https://github.com/ringosham/7zfm-qt"
-license=('LGPL-2.1-or-later' 'BSD-3-Clause' 'LicenseRef-unRAR')
+license=('LGPL-2.1-or-later' 'BSD-3-Clause' 'Zlib' 'LicenseRef-unRAR')
 depends=('qt6-base' 'libxcb' 'zstd' 'zlib' 'bzip2' 'lz4' 'flac' 'gcc-libs' 'glibc')
 makedepends=('cmake' 'ninja' 'python' 'git')
 makedepends_x86_64=('uasm')  # 7-Zip's assembly LZMA decoder
@@ -44,4 +44,5 @@ package() {
   install -Dm644 "$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 "$pkgname/external/7zip/DOC/unRarLicense.txt" "$pkgdir/usr/share/licenses/$pkgname/unRarLicense.txt"
   install -Dm644 "$pkgname/src/formats/disc/LICENSE.chd" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.chd"
+  install -Dm644 "$pkgname/src/formats/installer/LICENSE.innoextract" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.innoextract"
 }
