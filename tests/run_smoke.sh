@@ -209,4 +209,29 @@ if [ -f test5.rar ]; then
 else
   echo "SKIP: RAR5 fixtures ('rar' not installed)"
 fi
+
+# Game archives (src/formats/game), made by tests/make_gamearchives.py: each
+# holds the files in tests/data/game/tree
+G="$SRC/tests/data/game"
+same_tree() {  # same_tree <archive> [password]
+  rm -rf "$T/g"
+  if [ $# -ge 2 ]; then
+    CORE_SMOKE_PASSWORD=$2 "$S" x "$1" "$T/g" >/dev/null 2>&1 || return 1
+  else
+    "$S" x "$1" "$T/g" >/dev/null 2>&1 || return 1
+  fi
+  diff -r "$G/tree" "$T/g" >/dev/null
+}
+GODOT_KEY=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+for f in godot3.pck godot4.pck godot44.pck godot4-game.exe; do
+  DESC="Godot: $f extracts"
+  check same_tree "$G/$f"
+done
+DESC="Godot: encrypted pack with its key"
+check same_tree "$G/godot4-enc.pck" $GODOT_KEY
+DESC="Godot: encrypted pack without a key doesn't open"
+check sh -c "! '$S' ls '$G/godot4-enc.pck' >/dev/null 2>&1"
+DESC="Godot: encrypted pack with a wrong key doesn't open"
+check sh -c "! CORE_SMOKE_PASSWORD=ff$(echo $GODOT_KEY | cut -c3-) '$S' ls '$G/godot4-enc.pck' >/dev/null 2>&1"
+
 exit $fail
