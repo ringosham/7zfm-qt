@@ -891,7 +891,35 @@ def issetup(stream, kind):
     return out + b"signature after the files"
 
 
+def tiny_pe():
+    """a PE file of one 512-byte section, ending at 0x400"""
+    h = bytearray(0x200)
+    h[0:2] = b"MZ"
+    struct.pack_into("<I", h, 0x3C, 0x40)
+    h[0x40:0x44] = b"PE\0\0"
+    struct.pack_into("<HHIIIHH", h, 0x44, 0x14C, 1, 0, 0, 0, 0xE0, 0x102)
+    struct.pack_into("<H", h, 0x58, 0x10B)
+    sec = 0x40 + 24 + 0xE0
+    h[sec:sec + 8] = b".text\0\0\0"
+    struct.pack_into("<IIII", h, sec + 8, 0x200, 0x1000, 0x200, 0x200)
+    return bytes(h) + b"\xC3" * 0x200
+
+
+def issetup_text(nb10):
+    """InstallShield 10.5's layout: name, path, version and size as text"""
+    out = tiny_pe()
+    if nb10:
+        out += b"NB10" + b"\0" * 4 + bytes([0x12, 0x34, 0x56, 0x78, 1, 0, 0, 0]) + b"\0" * 4 + b"c:\\build\\setup.pdb" + b"\0" * 8
+    for name, content in FILES:
+        win = name.replace("/", "\\")
+        out += b"%s\0%s\0%s\0%d\0" % (win.rpartition("\\")[2].encode(), win.encode(), b"1.2.3.4", len(content))
+        out += content
+    return out + b"\0" * 16 + b"a signature after the files"
+
+
 def issetups(out):
+    write(out, "issetup-text.exe", issetup_text(False))
+    write(out, "issetup-text-nb10.exe", issetup_text(True))
     write(out, "issetup-plain.exe", issetup(False, "plain"))
     write(out, "issetup-xor.exe", issetup(False, "xor"))
     write(out, "issetup-stream.exe", issetup(True, 2))

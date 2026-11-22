@@ -20,6 +20,12 @@
 //
 // The launcher (the .exe before the files) is found by the signature, as a
 // self-extracting archive's is.
+//
+// InstallShield 10.5 (and others, by ISx) write no signature: right after
+// the launcher's last section each file is its name, the path to put it
+// at, its version and its size in decimal, each ending in a 0, then its
+// data. That is format ISSetupText, which takes the .exe from its start.
+// The files may follow a CodeView "NB10" block, skipped as ISx skips it.
 
 #include "Common/ComTry.h"
 #include "Common/MyBuffer.h"
@@ -75,7 +81,7 @@ struct CFile
   Byte Xor;
 };
 
-class CHandler Z7_final:
+class CHandler:
   public IInArchive,
   public IInArchiveGetStream,
   public CMyUnknownImp
@@ -86,8 +92,13 @@ public:
   CMyComPtr<IInStream> _stream;
   UInt64 _phySize;
   bool _strm;
+  const bool _text;     // ISSetupText
+  explicit CHandler(bool text = false): _phySize(0), _strm(false), _text(text) {}
+  virtual ~CHandler() {}
   HRESULT Open2(IInStream *stream);
+  HRESULT OpenText(IInStream *stream);
 };
+
 
 static Byte DecodeByte(Byte b, Byte key)
 {
@@ -203,6 +214,112 @@ HRESULT CHandler::Open2(IInStream *stream)
     pos += f.PackSize;
     _files.Add(f);
   }
+  _phySize = pos;
+  return S_OK;
+}
+
+// where the launcher's sections end, or 0 if it isn't a PE file
+static UInt64 PeEnd(IInStream *stream, UInt64 fileSize)
+{
+  Byte h[0x40];
+  if (fileSize < 0x40 || ReadAt(stream, 0, h, 0x40) != S_OK || h[0] != 'M' || h[1] != 'Z')
+    return 0;
+  const UInt32 pe = GetUi32(h + 0x3C);
+  Byte p[24];
+  if (pe > (1 << 20) || pe + 24 > fileSize || ReadAt(stream, pe, p, 24) != S_OK || GetUi32(p) != 0x4550)
+    return 0;
+  const unsigned numSections = GetUi16(p + 6);
+  const unsigned optSize = GetUi16(p + 20);
+  if (numSections == 0 || numSections > 96)
+    return 0;
+  const UInt64 tablePos = (UInt64)pe + 24 + optSize;
+  const size_t tableSize = (size_t)numSections * 40;
+  if (tablePos + tableSize > fileSize)
+    return 0;
+  CByteBuffer t(tableSize);
+  if (ReadAt(stream, tablePos, t, tableSize) != S_OK)
+    return 0;
+  UInt64 end = 0;
+  for (unsigned i = 0; i < numSections; i++)
+  {
+    const Byte *sec = t + i * 40;
+    const UInt64 e = (UInt64)GetUi32(sec + 20) + GetUi32(sec + 16);
+    if (GetUi32(sec + 16) != 0)
+      end = MyMax(end, e);
+  }
+  return end <= fileSize ? end : 0;
+}
+
+// a field of a file's text record: up to (max) bytes of (chars) and a 0
+static bool ReadField(const Byte *p, size_t size, size_t &pos, size_t max, AString &s, bool digits)
+{
+  s.Empty();
+  while (pos < size && p[pos] != 0)
+  {
+    const Byte c = p[pos++];
+    if (c < 0x20 || c == 0xFF || (digits && !(c >= '0' && c <= '9')) || s.Len() >= max)
+      return false;
+    s += (char)c;
+  }
+  if (pos >= size)
+    return false;
+  pos++;
+  return true;
+}
+
+HRESULT CHandler::OpenText(IInStream *stream)
+{
+  UInt64 fileSize = 0;
+  RINOK(GetStreamSize(stream, fileSize))
+  UInt64 pos = PeEnd(stream, fileSize);
+  if (pos == 0 || pos >= fileSize)
+    return S_FALSE;
+  const size_t kRec = 4 * 261 + 64;
+  CByteBuffer b(kRec);
+  {
+    // a CodeView block first: "NB10", zeros, its data, zeros, the .pdb path, zeros
+    size_t n = (size_t)MyMin((UInt64)kRec, fileSize - pos);
+    RINOK(ReadAt(stream, pos, b, n))
+    if (n > 4 && memcmp(b, "NB10", 4) == 0)
+    {
+      size_t i = 4;
+      while (i < n && b[i] >= 0x20 && b[i] != 0xFF) i++;
+      while (i < n && (b[i] == 0 || b[i] == 0xFF)) i++;
+      while (i < n && b[i] != 0 && b[i] != 0xFF) i++;
+      while (i < n && (b[i] == 0 || b[i] == 0xFF)) i++;
+      while (i < n && b[i] >= 0x20 && b[i] != 0xFF) i++;
+      while (i < n && (b[i] == 0 || b[i] == 0xFF)) i++;
+      pos += i;
+    }
+  }
+  while (pos < fileSize && _files.Size() < kMaxFiles)
+  {
+    const size_t n = (size_t)MyMin((UInt64)kRec, fileSize - pos);
+    RINOK(ReadAt(stream, pos, b, n))
+    size_t p = 0;
+    AString name, dest, version, sizeStr;
+    if (!ReadField(b, n, p, 259, name, false) || name.IsEmpty()
+        || !ReadField(b, n, p, 259, dest, false) || dest.IsEmpty()
+        || !ReadField(b, n, p, 31, version, false)
+        || !ReadField(b, n, p, 10, sizeStr, true) || sizeStr.IsEmpty())
+      break;
+    UInt64 size = 0;
+    for (unsigned i = 0; i < sizeStr.Len(); i++)
+      size = size * 10 + (unsigned)(sizeStr[i] - '0');
+    if (pos + p + size > fileSize)
+      break;
+    CFile &f = _files.AddNew();
+    f.Path = MultiByteToUnicodeString(dest, CP_ACP);
+    f.Path.Replace(L'\\', L'/');
+    f.Offset = pos + p;
+    f.PackSize = f.Size = size;
+    f.SizeDefined = true;
+    f.Compressed = false;
+    f.Xor = kXor_None;
+    pos += p + size;
+  }
+  if (_files.IsEmpty())
+    return S_FALSE;
   _phySize = pos;
   return S_OK;
 }
@@ -361,7 +478,7 @@ Z7_COM7F_IMF(CHandler::GetArchiveProperty(PROPID propID, PROPVARIANT *value))
   switch (propID)
   {
     case kpidPhySize: prop = _phySize; break;
-    case kpidComment: prop = _strm ? "InstallShield setup (ISSetupStream)" : "InstallShield setup"; break;
+    case kpidComment: prop = _text ? "InstallShield setup (text records)" : _strm ? "InstallShield setup (ISSetupStream)" : "InstallShield setup"; break;
     default: break;
   }
   prop.Detach(value);
@@ -400,7 +517,7 @@ Z7_COM7F_IMF(CHandler::Open(IInStream *stream, const UInt64 *, IArchiveOpenCallb
 {
   COM_TRY_BEGIN
   Close();
-  const HRESULT res = Open2(stream);
+  const HRESULT res = _text ? OpenText(stream) : Open2(stream);
   if (res != S_OK)
   {
     Close();
@@ -527,6 +644,25 @@ REGISTER_ARC_I(
   k_Signature,
   0,
   NArcInfoFlags::kMultiSignature | NArcInfoFlags::kFindSignature | NArcInfoFlags::kUseGlobalOffset,
+  NULL)
+
+}
+
+namespace NISSetupText {
+
+class CHandler Z7_final: public NISSetup::CHandler
+{
+public:
+  CHandler(): NISSetup::CHandler(true) {}
+};
+
+static const Byte k_Signature[] = { 'M', 'Z' };
+
+REGISTER_ARC_I(
+  "ISSetupText", "exe", NULL, 0xB5,
+  k_Signature,
+  0,
+  0,
   NULL)
 
 }}

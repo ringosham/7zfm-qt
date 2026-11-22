@@ -297,8 +297,8 @@ done
 
 # InstallShield setup.exe (src/formats/installer/ISSetup.cpp): the files
 # after the launcher, plain, XORed both ways and compressed, in both record
-# layouts
-for f in issetup-plain.exe issetup-xor.exe issetup-stream.exe issetup-stream4.exe; do
+# layouts, and InstallShield 10.5's text records (with a CodeView block first)
+for f in issetup-plain.exe issetup-xor.exe issetup-stream.exe issetup-stream4.exe issetup-text.exe issetup-text-nb10.exe; do
   DESC="InstallShield setup: $f extracts"
   check same_tree "$G/$f"
 done
