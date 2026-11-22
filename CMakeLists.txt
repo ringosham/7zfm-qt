@@ -68,6 +68,7 @@ add_library(7zcore OBJECT
   src/formats/game/RpgMaker.cpp
   src/formats/game/Xp3Handler.cpp
   src/formats/game/Bethesda.cpp
+  src/formats/game/Unity.cpp
   src/formats/disc/DiscImage.cpp
   src/formats/disc/DiscTracks.cpp
   src/formats/disc/DiscContainers.cpp

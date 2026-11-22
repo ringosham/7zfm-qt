@@ -477,6 +477,109 @@ def bethesda(out):
     write(out, "tree-stone.dds", dds)
 
 
+# ---------- Unity (AssetStudio's readers) ----------
+
+def ustr(s):
+    b = s.encode()
+    return struct.pack("<I", len(b)) + b + b"\0" * (-len(b) % 4)
+
+
+def serialized_file(objects, res_path):
+    """a SerializedFile, format 22 (Unity 2021.3): objects are (classID, bytes)"""
+    classes = sorted(set(c for c, _ in objects))
+    meta = b"2021.3.0f1\0" + struct.pack("<i", 19) + b"\0"           # version, platform, no type trees
+    meta += struct.pack("<i", len(classes))
+    for c in classes:
+        meta += struct.pack("<i", c) + b"\0" + struct.pack("<h", -1) + b"\0" * 16
+    meta += struct.pack("<i", len(objects))
+    body = b""
+    offsets = []
+    for c, data in objects:
+        body += b"\0" * (-len(body) % 8)
+        offsets.append(len(body))
+        body += data
+    for n, ((c, data), off) in enumerate(zip(objects, offsets)):
+        meta += b"\0" * (-(48 + len(meta)) % 4)
+        meta += struct.pack("<qqIi", n + 1, off, len(data), classes.index(c))
+    meta += struct.pack("<iii", 0, 0, 0) + b"\0"                      # scripts, externals, ref types, user info
+    data_offset = 48 + len(meta)
+    data_offset += -data_offset % 16
+    total = data_offset + len(body)
+    head = struct.pack(">IIII", 0, 0, 22, 0) + b"\0\0\0\0" + struct.pack(">IQQQ", len(meta), total, data_offset, 0)
+    return head + meta + b"\0" * (data_offset - 48 - len(meta)) + body
+
+
+def unity_objects(res_path, pixels):
+    text = FILES[0][1]
+    textasset = ustr("readme") + struct.pack("<I", len(text)) + text + b"\0" * (-len(text) % 4)
+    tex = ustr("pixels")
+    tex += struct.pack("<iBB", 0, 0, 0) + b"\0\0"                     # fallback format, downscale, alpha optional, align
+    tex += struct.pack("<iiiiii", 2, 2, len(pixels), 0, 4, 1)          # w, h, image size, mips stripped, RGBA32, mips
+    tex += bytes([0, 0, 0, 0]) + struct.pack("<i", 0)                  # readable, preprocessed, ignore limit, streaming; priority
+    tex += struct.pack("<ii", 1, 2) + b"\0" * 24 + struct.pack("<ii", 0, 1)
+    tex += struct.pack("<I", 0)                                       # platform blob
+    tex += struct.pack("<I", 0) + struct.pack("<QI", 0, len(pixels)) + ustr(res_path)
+    return [(49, textasset), (28, tex)]
+
+
+PIXELS = bytes([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 10, 20, 30, 40])   # RGBA, bottom row first
+
+
+def unity_tga():
+    h = bytearray(18)
+    h[2] = 2
+    struct.pack_into("<HHBB", h, 12, 2, 2, 32, 8)
+    px = bytearray(PIXELS)
+    for i in range(0, len(px), 4):
+        px[i], px[i + 2] = px[i + 2], px[i]
+    return bytes(h) + bytes(px)
+
+
+def unityfs(lzma_blocks):
+    import lzma
+    cab = "CAB-0123456789abcdef"
+    sf = serialized_file(unity_objects("archive:/%s/%s.resS" % (cab, cab), PIXELS), None)
+    res = PIXELS
+    data = sf + res
+    nodes = [(0, len(sf), 4, cab), (len(sf), len(res), 0, cab + ".resS")]
+    blocks = []
+    payload = b""
+    for i in range(0, len(data), 4096):
+        chunk = data[i:i + 4096]
+        if lzma_blocks:
+            filt = [{"id": lzma.FILTER_LZMA1, "dict_size": 1 << 16, "lc": 3, "lp": 0, "pb": 2}]
+            packed = b"\x5d" + struct.pack("<I", 1 << 16) + lzma.compress(chunk, format=lzma.FORMAT_RAW, filters=filt)
+            blocks.append((len(chunk), len(packed), 1))
+        else:
+            packed = lz4_block(chunk)
+            blocks.append((len(chunk), len(packed), 2))
+        payload += packed
+    info = b"\0" * 16 + struct.pack(">i", len(blocks))
+    for u, c, f in blocks:
+        info += struct.pack(">IIH", u, c, f)
+    info += struct.pack(">i", len(nodes))
+    for off, size, flags, path in nodes:
+        info += struct.pack(">qqI", off, size, flags) + path.encode() + b"\0"
+    cinfo = lz4_block(info)
+    head = b"UnityFS\0" + struct.pack(">I", 7) + b"5.x.x\0" + b"2021.3.0f1\0"
+    size_pos = len(head)
+    head += struct.pack(">qIII", 0, len(cinfo), len(info), 0x42)      # LZ4 block info, directory combined
+    head += b"\0" * (-len(head) % 16)
+    total = len(head) + len(cinfo) + len(payload)
+    head = head[:size_pos] + struct.pack(">q", total) + head[size_pos + 8:]
+    return head + cinfo + payload
+
+
+def unity(out):
+    write(out, "unity-lz4.unity3d", unityfs(False))
+    write(out, "unity-lzma.unity3d", unityfs(True))
+    d = os.path.join(out, "unity")
+    os.makedirs(d, exist_ok=True)
+    write(d, "sharedassets0.assets", serialized_file(unity_objects("sharedassets0.assets.resS", PIXELS), None))
+    write(d, "sharedassets0.assets.resS", PIXELS)
+    write(out, "tree-pixels.tga", unity_tga())
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -486,6 +589,7 @@ def main():
     rpgmaker(out)
     kirikiri(out)
     bethesda(out)
+    unity(out)
 
 
 if __name__ == "__main__":

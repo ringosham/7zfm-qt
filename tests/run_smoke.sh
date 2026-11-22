@@ -267,4 +267,13 @@ done
 DESC="Bethesda: a BA2 texture gets its DDS header back"
 check sh -c "'$S' cat '$G/fallout4-textures.ba2' textures/stone.dds | cmp -s - '$G/tree-stone.dds'"
 
+for f in unity-lz4.unity3d unity-lzma.unity3d unity/sharedassets0.assets; do
+  DESC="Unity: $f gives its TextAsset"
+  check sh -c "'$S' cat '$G/$f' TextAsset/readme.txt | cmp -s - '$G/tree/readme.txt'"
+  DESC="Unity: $f gives its texture as TGA (from the .resS)"
+  check sh -c "'$S' cat '$G/$f' Texture2D/pixels.tga | cmp -s - '$G/tree-pixels.tga'"
+done
+DESC="Unity: a bundle's serialized file opens by its header"
+check sh -c "'$S' ls '$G/unity-lz4.unity3d' Files/CAB-0123456789abcdef | grep -q TextAsset"
+
 exit $fail

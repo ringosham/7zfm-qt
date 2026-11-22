@@ -56,6 +56,7 @@ struct CPiece
   UInt64 PackSize;
   UInt64 Size;        // unpacked
   Byte Method;
+  Byte Stream;        // 0: the data stream; n: the handler's _extraStreams[n - 1]
   UInt64 Aux;         // the handler's
 };
 
@@ -80,7 +81,7 @@ struct CItem
     { MTime.dwLowDateTime = MTime.dwHighDateTime = 0; }
 
   // adds a piece and counts it in Size and PackSize
-  void AddPiece(UInt64 offset, UInt64 packSize, UInt64 size, Byte method, UInt64 aux = 0);
+  void AddPiece(UInt64 offset, UInt64 packSize, UInt64 size, Byte method, UInt64 aux = 0, Byte stream = 0);
   // a stored item: one piece
   void SetStored(UInt64 offset, UInt64 size) { Pieces.Clear(); Size = PackSize = 0; AddPiece(offset, size, size, kMethod_Stored); }
   void SetMTime_Unix(Int64 t);
@@ -101,6 +102,7 @@ protected:
   CObjectVector<CItem> _items;
   CMyComPtr<IInStream> _stream;
   CMyComPtr<IInStream> _dataStream;   // the items' data, if not in _stream (another file)
+  CObjectVector<CMyComPtr<IInStream> > _extraStreams;   // more files pieces read from
   UInt64 _phySize;
   UInt32 _errorFlags;   // kpv_ErrorFlags_*
   UString _error;       // kpidError
@@ -126,6 +128,8 @@ public:
   static HRESULT DecodeMethod(Byte method, UInt64 aux, const Byte *src, size_t srcSize, Byte *dest, size_t destSize);
   IInStream *Stream() const { return _stream; }
   IInStream *DataStream() const { return _dataStream ? _dataStream : _stream; }
+  IInStream *PieceStream(const CPiece &p) const
+    { return p.Stream == 0 ? DataStream() : (p.Stream <= _extraStreams.Size() ? (IInStream *)_extraStreams[p.Stream - 1] : NULL); }
   HRESULT GetItemStream(unsigned index, CMyComPtr<IInStream> &stream);
 };
 

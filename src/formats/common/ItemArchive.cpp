@@ -40,13 +40,14 @@ UInt32 GetBe32(const Byte *p) { return ((UInt32)p[0] << 24) | ((UInt32)p[1] << 1
 // broken index
 static const UInt64 kMaxPieceSize = (UInt64)1 << 32;
 
-void CItem::AddPiece(UInt64 offset, UInt64 packSize, UInt64 size, Byte method, UInt64 aux)
+void CItem::AddPiece(UInt64 offset, UInt64 packSize, UInt64 size, Byte method, UInt64 aux, Byte stream)
 {
   CPiece p;
   p.Offset = offset;
   p.PackSize = packSize;
   p.Size = size;
   p.Method = method;
+  p.Stream = stream;
   p.Aux = aux;
   Pieces.Add(p);
   Size += size;
@@ -94,6 +95,8 @@ HRESULT GetStreamSize(IInStream *stream, UInt64 &size)
 UString GetArcName(IArchiveOpenCallback *callback)
 {
   UString name;
+  if (!callback)
+    return name;
   Z7_DECL_CMyComPtr_QI_FROM(IArchiveOpenVolumeCallback, volumeCallback, callback)
   if (volumeCallback)
   {
@@ -110,6 +113,8 @@ UString GetArcName(IArchiveOpenCallback *callback)
 HRESULT OpenSiblingFile(IArchiveOpenCallback *callback, const UString &name, CMyComPtr<IInStream> &stream)
 {
   stream.Release();
+  if (!callback)
+    return S_OK;
   Z7_DECL_CMyComPtr_QI_FROM(IArchiveOpenVolumeCallback, volumeCallback, callback)
   if (!volumeCallback)
     return S_OK;
@@ -125,6 +130,8 @@ HRESULT OpenSiblingFile(IArchiveOpenCallback *callback, const UString &name, CMy
 HRESULT AskPassword(IArchiveOpenCallback *callback, UString &password)
 {
   password.Empty();
+  if (!callback)
+    return S_FALSE;
   Z7_DECL_CMyComPtr_QI_FROM(ICryptoGetTextPassword, getPassword, callback)
   if (!getPassword)
     return S_FALSE;
@@ -315,11 +322,17 @@ Z7_COM7F_IMF(CItemStream::Read(void *data, UInt32 size, UInt32 *processedSize))
   if (size > rem)
     size = (UInt32)rem;
 
+  IInStream *pieceStream = _arc->PieceStream(piece);
+  if (!pieceStream && piece.Method != kMethod_Inline)
+  {
+    Error = k_Hr_DataError;
+    return E_FAIL;
+  }
   if (piece.Method == kMethod_Stored)
   {
-    RINOK(InStream_SeekSet(_stream, piece.Offset + inPiece))
+    RINOK(InStream_SeekSet(pieceStream, piece.Offset + inPiece))
     UInt32 got = 0;
-    RINOK(_stream->Read(data, size, &got))
+    RINOK(pieceStream->Read(data, size, &got))
     if (got == 0)
       return S_OK;
     _arc->TransformStored(*_item, lo, inPiece, (Byte *)data, got);
@@ -345,7 +358,7 @@ Z7_COM7F_IMF(CItemStream::Read(void *data, UInt32 size, UInt32 *processedSize))
         return E_FAIL;
       }
       _packed.Alloc((size_t)piece.PackSize);
-      const HRESULT r = ReadAt(_stream, piece.Offset, _packed, (size_t)piece.PackSize);
+      const HRESULT r = ReadAt(pieceStream, piece.Offset, _packed, (size_t)piece.PackSize);
       if (r != S_OK)
       {
         Error = (r == S_FALSE) ? k_Hr_DataError : r;
@@ -489,6 +502,7 @@ Z7_COM7F_IMF(CHandlerBase::Close())
   _items.Clear();
   _stream.Release();
   _dataStream.Release();
+  _extraStreams.Clear();
   _phySize = 0;
   _errorFlags = 0;
   _error.Empty();
