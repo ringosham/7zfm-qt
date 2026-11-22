@@ -1,14 +1,15 @@
 // DiscPowerIso.cpp -- 7zfm-qt: PowerISO DAA and gBurner GBI images, also
 // split into .part01.daa, .part02.daa ... or .d00, .d01 ... Written from
 // the format as daa2iso (Luigi Auriemma) documents it; no code of it is
-// used (it is GPL). Checked against images made by PowerISO 1.6 for Linux
-// and PowerISO 9.5 for Windows (piso.exe).
+// used (it is GPL). Checked against images made by PowerISO 1.6 for Linux,
+// PowerISO 9.5 for Windows (piso.exe) and gBurner 5.6: plain, split and
+// with a password.
 //
 //   A 76-byte header: "DAA" (or "GBI"; a later volume says "DAA VOL"), the
 //   offset of the chunk table, the version (0x100 or 0x110), the offset of
 //   the chunks, the chunk size, the image size and the archive size, 16
 //   bytes of settings and a CRC. Between the header and the table: tagged
-//   blocks (1: split archive, 3: password). The image is cut in chunks of
+//   blocks (1: split archive, 3: password, see CDaaCipher). The image is cut in chunks of
 //   the chunk size, each compressed on its own:
 //   0x100  the table holds 3 bytes a chunk (its packed size); deflate
 //   0x110  the table is a bit stream: a packed size and a type per chunk,
@@ -21,8 +22,7 @@
 //          XOR with a fixed 8-byte key); gBurner's GBI by bytes, keyed by
 //          the header CRC.
 //   Volumes after the first continue the chunks after their own header.
-//
-// Password-protected images are not supported.
+//   With a password, every chunk is stored shuffled (CDaaCipher).
 
 #include "Common/ComTry.h"
 #include "Common/MyBuffer.h"
@@ -31,6 +31,7 @@
 #include "7zip/Common/RegisterArc.h"
 #include "7zip/Common/StreamUtils.h"
 
+#include "C/7zCrc.h"
 #include "C/Alloc.h"
 #include "C/Bra.h"
 #include "C/LzmaDec.h"
@@ -284,6 +285,128 @@ struct CVolume
   UInt64 Pos;       // in the data of all volumes
 };
 
+// ---------- the password ----------
+// Each chunk is cut in pieces of 128 bytes (the last one shorter). A piece
+// of n bytes is 2n nibbles, which the password shuffles: nibble k of the
+// stored piece (the low one of a byte first) goes to place order[k] of the
+// clear one, an odd place being the high nibble of byte place / 2. The
+// order for each n comes from the password: places are taken one by one,
+// each a number of places on from the last among those not taken yet. The
+// image keeps 128 bytes that, so unshuffled, have a known CRC.
+
+class CDaaCipher
+{
+  Byte _orders[128][256];   // for pieces of 1 .. 128 bytes
+
+  // from place a, on by count places not taken, wrapping from end to wrapTo
+  static int Step(const short *taken, int a, unsigned count, int end, int wrapTo)
+  {
+    for (unsigned i = 0; i != count;)
+    {
+      if (++a == end)
+        a = wrapTo;
+      if (taken[a] != -1)
+        i++;
+    }
+    return a;
+  }
+
+  void MakeOrder(const Byte *pw, unsigned pwLen, unsigned n)
+  {
+    Byte *order = _orders[n - 1];
+    const int places = (int)n * 2;
+    const unsigned p0 = pwLen ? pw[0] : 0;
+    short left[256];   // a place, or -1 once taken
+    for (int i = 0; i < 256; i++)
+      left[i] = (short)i;
+    memset(order, 0, 256);
+    int a = (int)(p0 >> 5);
+    if (places <= 64)
+    {
+      if (a >= places)
+        a = places - 1;
+      for (int k = 0; k < places; k++)
+      {
+        a = Step(left, a, 11, places, 0);
+        order[k] = (Byte)a;
+        left[a] = -1;
+      }
+      return;
+    }
+    // larger pieces: the first place is in the upper part; the next ones
+    // there, each on by the next password byte; the rest anywhere
+    order[0] = (Byte)(a + 32);
+    left[a + 32] = -1;
+    int k = 1;
+    unsigned next = 1;
+    for (; k < places - 32; k++)
+    {
+      unsigned count = 11;
+      if (next < pwLen)
+      {
+        count = pw[next++];
+        if (count == 0)
+          count = 11;
+      }
+      a = Step(left, a, count, places, 32);
+      left[a] = -1;
+      order[k] = (Byte)a;
+    }
+    const unsigned rest = (p0 & 7) ? (p0 & 7) : 7;
+    for (; k < places; k++)
+    {
+      a = Step(left, a, rest, places, 0);
+      left[a] = -1;
+      order[k] = (Byte)a;
+    }
+    // and, if the password says so, the order itself shuffled the same way
+    const unsigned again = p0 & 24;
+    if (again)
+    {
+      for (int i = 0; i < places; i++)
+        left[i] = order[i];
+      a = 0;
+      for (k = 0; k < places; k++)
+      {
+        a = Step(left, a, again, places, 0);
+        order[k] = (Byte)left[a];
+        left[a] = -1;
+      }
+    }
+  }
+
+  void Piece(Byte *dest, const Byte *src, unsigned n) const
+  {
+    const Byte *order = _orders[n - 1];
+    memset(dest, 0, n);
+    for (unsigned i = 0; i < n; i++)
+      for (unsigned half = 0; half < 2; half++)
+      {
+        const unsigned place = order[i * 2 + half];
+        const unsigned nibble = half ? (unsigned)(src[i] >> 4) : (unsigned)(src[i] & 15);
+        dest[place >> 1] |= (Byte)((place & 1) ? nibble << 4 : nibble);
+      }
+  }
+public:
+  void SetPassword(const Byte *pw, unsigned pwLen)
+  {
+    for (unsigned n = 1; n <= 128; n++)
+      MakeOrder(pw, pwLen, n);
+  }
+  void Decrypt(Byte *data, size_t size) const
+  {
+    Byte tmp[128];
+    while (size != 0)
+    {
+      const unsigned n = (unsigned)MyMin(size, (size_t)128);
+      Piece(tmp, data, n);
+      memcpy(data, tmp, n);
+      data += n;
+      size -= n;
+    }
+  }
+};
+
 class CHandler Z7_final: public CBlockHandler
 {
   std::vector<CVolume> _volumes;
@@ -293,11 +416,14 @@ class CHandler Z7_final: public CBlockHandler
   bool _x86;
   Byte _lzmaProps[5];
   CByteBuffer _packed;
+  bool _encrypted;
+  CDaaCipher _cipher;
 
   HRESULT ReadData(UInt64 pos, Byte *data, size_t size);
   HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override;
-  void Close2() Z7_override { _volumes.clear(); _offsets.clear(); _types.clear(); }
+  void Close2() Z7_override { _volumes.clear(); _offsets.clear(); _types.clear(); _encrypted = false; }
 public:
+  CHandler(): _encrypted(false) {}
   HRESULT ReadBlock(UInt64 index, Byte *dest) Z7_override;
 };
 
@@ -396,12 +522,37 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
       RINOK(NItemArc::ReadAt(stream, pos, t, 8))
       const UInt32 type = GetUi32(t), len = GetUi32(t + 4);
       if (type == 3)
-        return S_FALSE;          // password protected: not supported
+      {
+        // a password: its kind (0), the CRC of the check bytes unshuffled, those
+        Byte k[8 + 128];
+        if (len < 8 + sizeof(k))
+          return S_FALSE;
+        RINOK(NItemArc::ReadAt(stream, pos + 8, k, sizeof(k)))
+        if (GetUi32(k) != 0)
+          return S_FALSE;        // another kind: not known
+        UString pw;
+        const HRESULT r = NItemArc::AskPassword(callback, pw);
+        if (r == E_ABORT)
+          return E_ABORT;
+        if (r != S_OK)
+          return S_FALSE;
+        const AString a = UnicodeStringToMultiByte(pw, CP_ACP);
+        _cipher.SetPassword((const Byte *)a.Ptr(), MyMin(a.Len(), (unsigned)64));
+        Byte check[128];
+        memcpy(check, k + 8, 128);
+        _cipher.Decrypt(check, 128);
+        if (CrcCalc(check, 128) != GetUi32(k + 4))
+          return S_FALSE;        // a wrong password
+        _encrypted = true;
+      }
       if (len < 8)
         break;
       pos += len;
     }
   }
+
+  // the item's name, before the volumes change the name the callback gives
+  UString isoName = ReplaceExtension(NItemArc::GetArcName(callback), "iso");
 
   // the volumes: this, then .part02.daa / .part002.daa / .d00 ...
   UInt64 fileSize;
@@ -432,6 +583,13 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
         digits = (int)n;
         base = stem.Left(stem.Len() - n);
         first = 2;
+        // split.part01.daa holds split.iso
+        UString b = base;
+        if (b.Len() > 5 && StringsAreEqualNoCase_Ascii(b.RightPtr(5), ".part"))
+          b.DeleteFrom(b.Len() - 5);
+        else if (b.Len() > 1 && (b.Back() == L'.' || b.Back() == L'_' || b.Back() == L'-'))
+          b.DeleteBack();
+        isoName = b + L".iso";
       }
       else
       {
@@ -558,7 +716,7 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
   _size = isoSize;
   _blockSize = chunkSize;
   _phySize = fileSize;
-  _name = ReplaceExtension(GetArcName(callback), "iso");
+  _name = isoName;
   if (_name.IsEmpty())
     _name = "image.iso";
   _method = version == 0x100 ? "Deflate" : lzma ? "LZMA" : "Deflate";
@@ -576,6 +734,8 @@ HRESULT CHandler::ReadBlock(UInt64 index, Byte *dest)
   if (len > _packed.Size())
     return S_FALSE;
   RINOK(ReadData(start, _packed, (size_t)len))
+  if (_encrypted)
+    _cipher.Decrypt(_packed, (size_t)len);
   const Byte type = _types[(size_t)index];
   if (type == 2)
   {

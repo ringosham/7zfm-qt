@@ -300,6 +300,22 @@ for f in tree-v100.daa tree-v110.daa; do
 done
 DESC="DAA: a split image (.part01.daa, .part02.daa)"
 check sh -c "rm -rf '$T/d'; '$S' x '$DA/split.part01.daa' '$T/d' >/dev/null 2>&1 && cd '$T/d' && sha256sum -c '$DA/noise.sha256' >/dev/null"
+DESC="DAA: a split image holds split.iso"
+check sh -c "CORE_SMOKE_FORMAT='*' '$S' ls '$DA/split.part01.daa' | grep -q '	split.iso$'"
+# gBurner GBI: made by gBurner 5.6 (its Convert Image, under wine) from an ISO
+# of the tree; tree-password.daa by PowerISO's piso.exe
+for f in tree.gbi tree-best.gbi; do
+  DESC="GBI: $f gives its ISO's files"
+  check sh -c "rm -rf '$T/d'; '$S' x '$DA/$f' '$T/d' >/dev/null 2>&1 && diff -r '$G/tree' '$T/d' >/dev/null"
+done
+DESC="GBI: a split image (.part01.gbi ...)"
+check sh -c "rm -rf '$T/d'; '$S' x '$DA/vol.part01.gbi' '$T/d' >/dev/null 2>&1 && cd '$T/d' && sha256sum -c '$DA/vol-noise.sha256' >/dev/null"
+for f in tree-password.gbi:secret "tree-password.daa:Zz9!long password here"; do
+  DESC="DAA/GBI: ${f%%:*} with its password"
+  check sh -c "rm -rf '$T/d'; CORE_SMOKE_PASSWORD='${f#*:}' '$S' x '$DA/${f%%:*}' '$T/d' >/dev/null 2>&1 && diff -r '$G/tree' '$T/d' >/dev/null"
+  DESC="DAA/GBI: ${f%%:*} with a wrong password fails"
+  check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' ls '$DA/${f%%:*}' >/dev/null 2>&1"
+done
 
 # MagicISO UIF (src/formats/disc/DiscUif.cpp): written by make_gamearchives.py
 # (uif2iso gives the same ISO from each); checked by hand against images made
