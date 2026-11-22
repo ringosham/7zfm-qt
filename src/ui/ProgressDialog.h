@@ -25,8 +25,9 @@ public:
   // Runs (work) on a worker thread. User input to other windows is blocked
   // while it runs; the dialog appears at once, or after a short delay in
   // waitMode (so quick opens don't flash a window), like upstream.
-  // Errors collected in sync.Messages are shown afterwards.
-  static void Run(QWidget *parent, CProgressSync &sync, const QString &title,
+  // Errors collected in sync.Messages are shown afterwards; returns true
+  // if they (or the final OK message) were.
+  static bool Run(QWidget *parent, CProgressSync &sync, const QString &title,
       const std::function<void()> &work, bool waitMode);
 
   void reject() override;

@@ -88,6 +88,12 @@ public:
   CProgressThreadVirt(): Result(E_FAIL), ThreadFinishedOK(false) {}
 
   CProgressMessageBoxPair &GetMessagePair(bool isError) { return isError ? FinalMessage.ErrorMessage : FinalMessage.OkMessage; }
+
+  // 7zfm-qt: Result, or E_ABORT if it failed and the progress dialog has
+  // shown why. Callers keep quiet on E_ABORT; on Result they would show the
+  // error again (as "Unspecified error" for E_FAIL), as upstream's do.
+  HRESULT Result_NotShown() const
+    { return (Result != S_OK && MessagesDisplayed) ? E_ABORT : Result; }
 };
 
 #endif

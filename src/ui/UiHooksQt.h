@@ -16,7 +16,7 @@ class UiHooksQt : public IUiHooks
 public:
   explicit UiHooksQt(QWidget *parent): _parent(parent) {}
 
-  void RunWithProgress(CProgressSync &sync, const UString &title,
+  bool RunWithProgress(CProgressSync &sync, const UString &title,
       const std::function<void()> &work, bool waitMode) override;
   bool AskPassword(UString &password) override;
   void ShowError(const UString &message) override;

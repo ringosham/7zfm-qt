@@ -83,7 +83,7 @@ HRESULT CThreadFolderOperations::DoOperation(CFolderOpPassword &pw, const UStrin
     pw.UsePassword = true;
     pw.Password = UpdateCallbackSpec->Password;
   }
-  return Result;
+  return Result_NotShown();
 }
 
 HRESULT FolderOp_CreateFolder(IFolderOperations *ops, const UString &name, CFolderOpPassword &pw)
@@ -170,7 +170,7 @@ HRESULT FolderOp_CopyFrom(IFolderOperations *ops, bool moveMode, const UString &
     pw.UsePassword = true;
     pw.Password = updater.UpdateCallbackSpec->Password;
   }
-  return updater.Result;
+  return updater.Result_NotShown();
 }
 
 // ---- upstream PanelItemOpen.cpp CThreadCopyFrom ----
@@ -206,7 +206,7 @@ HRESULT FolderOp_CopyFromFile(IFolderOperations *ops, UInt32 index, const UStrin
   t.UpdateCallbackSpec->Password = pw.Password;
 
   RINOK(t.Create(itemName, NULL))
-  return t.Result;
+  return t.Result_NotShown();
 }
 
 bool RunComboDialog(const UString &title, const UString &staticText, UString &value,

@@ -310,7 +310,7 @@ public:
 
 }
 
-void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &title,
+bool ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &title,
     const std::function<void()> &work, bool waitMode)
 {
   ProgressDialog dlg(sync, title, parent ? parent->window() : nullptr);
@@ -369,6 +369,9 @@ void ProgressDialog::Run(QWidget *parent, CProgressSync &sync, const QString &ti
     ShowMessagesDialog(parent, title, messages);
   else if (!okMessage.isEmpty())
     QMessageBox::information(parent ? parent->window() : nullptr, okTitle.isEmpty() ? title : okTitle, okMessage);
+  else
+    return false;
+  return true;
 }
 
 void ShowMessagesDialog(QWidget *parent, const QString &title, const QStringList &messages)

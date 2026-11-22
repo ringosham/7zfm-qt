@@ -65,7 +65,9 @@ struct IUiHooks
   // Returns after (work) finished; the UI keeps processing events meanwhile.
   // waitMode: show the dialog only if the work takes noticeable time
   // (upstream CProgressDialog::WaitMode).
-  virtual void RunWithProgress(CProgressSync &sync, const UString &title,
+  // Returns true if it showed the errors or the final message afterwards,
+  // as upstream's progress window does (CProgressThreadVirt::MessagesDisplayed).
+  virtual bool RunWithProgress(CProgressSync &sync, const UString &title,
       const std::function<void()> &work, bool waitMode) = 0;
 
   // May be called from the worker thread; blocks until the user answers.

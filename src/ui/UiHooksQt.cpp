@@ -34,12 +34,13 @@ QWidget *UiHooksQt::DialogParent() const
   return w;
 }
 
-void UiHooksQt::RunWithProgress(CProgressSync &sync, const UString &title,
+bool UiHooksQt::RunWithProgress(CProgressSync &sync, const UString &title,
     const std::function<void()> &work, bool waitMode)
 {
   FolderAccess_Block();
-  ProgressDialog::Run(_parent, sync, ToQ(title), work, waitMode);
+  const bool shown = ProgressDialog::Run(_parent, sync, ToQ(title), work, waitMode);
   FolderAccess_Unblock();
+  return shown;
 }
 
 bool UiHooksQt::AskPassword(UString &password)

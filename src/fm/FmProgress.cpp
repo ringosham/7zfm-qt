@@ -17,7 +17,10 @@ HRESULT CProgressThreadVirt::Create(const UString &title, HWND /* parentWindow *
   t += title;
   if (!Ui)
     return E_FAIL;
-  Ui->RunWithProgress(Sync, title, [this]() { Process(); }, WaitMode);
+  // 7zfm-qt: the dialog shows the errors itself, as upstream's progress
+  // window does; callers then don't show them a second time
+  if (Ui->RunWithProgress(Sync, title, [this]() { Process(); }, WaitMode))
+    MessagesDisplayed = true;
   ProcessWasFinished_GuiVirt();
   return S_OK;
 }

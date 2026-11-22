@@ -233,7 +233,7 @@ HRESULT Panel::CopyTo(CCopyToOptions &options,
   if (messages)
     *messages = extracter.Sync.Messages;
 
-  res = extracter.Result;
+  res = extracter.Result_NotShown();
 
   if (res == S_OK && extracter.ExtractCallbackSpec->IsOK())
   {

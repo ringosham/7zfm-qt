@@ -123,6 +123,21 @@ else
   echo "SKIP: drag of a '..' folder (no python3)"
 fi
 
+if command -v python3 >/dev/null 2>&1; then
+  # the progress dialog shows why; no "E_NOINTERFACE" / "Unspecified error"
+  # box may follow it, so after one Escape the main window is on top again
+  DESC="GUI: dropping files into a read-only archive shows the error once"
+  mkdir -p "$WORK/ro"
+  cp "$SRC/tests/data/lzip/multi.txt.lz" "$WORK/ro/ro.lz"
+  echo drop > "$WORK/ro/drop.txt"
+  check run "$WORK/ro/ro.lz" --action "drop:$WORK/ro/drop.txt" --keys "@wait,Escape,@wait" --screenshot "$WORK/ro/after.png"
+  check python3 -I -c 'import struct, sys
+w, h = struct.unpack(">II", open(sys.argv[1], "rb").read(24)[16:24])
+sys.exit(0 if w >= 800 else 1)' "$WORK/ro/after.png"
+else
+  echo "SKIP: error shown once (no python3)"
+fi
+
 if command -v dbus-run-session >/dev/null 2>&1; then
   DESC="GUI: drop on a KIO target (Ark DnD D-Bus call) extracts there, not at drag start"
   mkdir -p "$WORK/dnd"
