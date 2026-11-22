@@ -61,6 +61,7 @@ add_library(7zcore OBJECT
   src/formats/TarCompound.cpp
   src/formats/ExFatHandler.cpp
   src/formats/LzipHandler.cpp
+  src/formats/AceHandler.cpp
   src/formats/WinPathZip.cpp
   src/formats/common/ItemArchive.cpp
   src/formats/game/GodotPck.cpp

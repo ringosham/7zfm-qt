@@ -61,6 +61,11 @@ Copyright: 2003-2023 David Eriksson and contributors (unshield)
 License: Expat
 Comment: follows unshield; the full notice is src/formats/installer/LICENSE.unshield
 
+Files: src/formats/AceHandler.cpp src/formats/AceBlowfishTables.h
+Copyright: 2017-2026 Daniel Roethlisberger and contributors (acefile)
+License: BSD-2-clause
+Comment: a port of acefile; the full notice is src/formats/LICENSE.acefile
+
 Files: external/7zip/C/Xxh64.c
 Copyright: 2012-2021 Yann Collet
            2023-2026 Igor Pavlov

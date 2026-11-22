@@ -301,4 +301,19 @@ done
 DESC="DAA: a split image (.part01.daa, .part02.daa)"
 check sh -c "rm -rf '$T/d'; '$S' x '$DA/split.part01.daa' '$T/d' >/dev/null 2>&1 && cd '$T/d' && sha256sum -c '$DA/noise.sha256' >/dev/null"
 
+# ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
+AC="$SRC/tests/data/ace"
+for f in ace10.ace solid.ace; do
+  DESC="ACE: $f extracts"
+  check sh -c "rm -rf '$T/a'; '$S' x '$AC/$f' '$T/a' >/dev/null 2>&1 && diff -r '$G/tree' '$T/a/tree' >/dev/null"
+done
+DESC="ACE: delta, x86, picture and sound modes"
+check sh -c "rm -rf '$T/a'; '$S' x '$AC/media.ace' '$T/a' >/dev/null 2>&1 && '$S' x '$AC/sound.ace' '$T/a' >/dev/null 2>&1 && cd '$T/a' && sha256sum -c '$AC/media.sha256' >/dev/null"
+for f in pass.ace pass-solid.ace; do
+  DESC="ACE: $f with its password"
+  check sh -c "rm -rf '$T/a'; CORE_SMOKE_PASSWORD=secret '$S' x '$AC/$f' '$T/a' >/dev/null 2>&1 && cmp -s '$G/tree/readme.txt' '$T/a/tree/readme.txt'"
+  DESC="ACE: $f with a wrong password fails"
+  check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' t '$AC/$f' >/dev/null 2>&1"
+done
+
 exit $fail
