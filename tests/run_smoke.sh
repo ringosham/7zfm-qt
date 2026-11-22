@@ -301,6 +301,18 @@ done
 DESC="DAA: a split image (.part01.daa, .part02.daa)"
 check sh -c "rm -rf '$T/d'; '$S' x '$DA/split.part01.daa' '$T/d' >/dev/null 2>&1 && cd '$T/d' && sha256sum -c '$DA/noise.sha256' >/dev/null"
 
+# MagicISO UIF (src/formats/disc/DiscUif.cpp): written by make_gamearchives.py
+# (uif2iso gives the same ISO from each); checked by hand against images made
+# by MagicISO 5.5, plain and with a password
+for f in magiciso-v1.uif magiciso-v1-password.uif magiciso-v3-lzma-key.uif; do
+  DESC="UIF: $f gives its ISO's files"
+  check sh -c "rm -rf '$T/d'; CORE_SMOKE_PASSWORD=abcdef '$S' x '$G/$f' '$T/d' >/dev/null 2>&1 && diff -r '$G/tree' '$T/d' >/dev/null"
+done
+DESC="UIF: the image itself, by Open Inside *"
+check sh -c "CORE_SMOKE_FORMAT='*' '$S' ls '$G/magiciso-v1.uif' | grep -q 'magiciso-v1.iso'"
+DESC="UIF: a wrong password fails"
+check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' ls '$G/magiciso-v1-password.uif' >/dev/null 2>&1"
+
 # ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
 AC="$SRC/tests/data/ace"
 for f in ace10.ace solid.ace; do

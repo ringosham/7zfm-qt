@@ -8,6 +8,8 @@
 //   core_smoke x   <file> <outdir>            extract everything through the
 //                                             Agent (IArchiveFolder::Extract)
 //
+// CORE_SMOKE_FORMAT, if set, is the top-level file's format as Open Inside
+// takes it ("*": an image itself rather than the files of what it holds).
 // CORE_SMOKE_PASSWORD, if set, answers password requests while opening
 // (encrypted headers) and while extracting. The top-level file is opened
 // with upstream's COpenCallbackImp, so multi-volume archives work.
@@ -145,7 +147,10 @@ static HRESULT OpenArc(IInStream *stream, const UString &path, CMyComPtr<IFolder
   CMyComPtr<IFolderManager> manager = new CArchiveFolderManager;
   folder.Release();
   // arcFormat must be non-NULL: "" = by signature, "*" / "#" as in Open Inside.
-  return manager->OpenFolderFile(stream, path, L"", &folder, progress);
+  // CORE_SMOKE_FORMAT sets it for the top-level file ("*": the image itself,
+  // not the files of the image it holds)
+  const char *f = stream ? NULL : getenv("CORE_SMOKE_FORMAT");
+  return manager->OpenFolderFile(stream, path, f ? GetUnicodeString(f) : UString(), &folder, progress);
 }
 
 static bool FindItem(IFolderFolder *folder, const UString &name, UInt32 &index)

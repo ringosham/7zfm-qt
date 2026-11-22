@@ -8,6 +8,8 @@ Every archive holds the same small tree (FILES below), so a test extracts it
 and compares with that. The Unreal paks (unreal-*.pak) are made from that
 tree by repak (https://github.com/trumank/repak), not by this script:
   repak pack --version V11 --compression Zlib tree unreal-v11-zlib.pak
+The MagicISO images (magiciso-*.uif) hold an ISO of the tree that xorriso
+makes; without xorriso they are left as they are.
 """
 import hashlib
 import os
@@ -742,6 +744,146 @@ def installshield(out):
     write(d, "data1.cab", installshield_cab())
 
 
+# ---------- MagicISO .uif (src/formats/disc/DiscUif.cpp) ----------
+# The ISO inside is the tree made by xorriso (SOURCE_DATE_EPOCH fixed); the
+# image is cut into runs of 128 sectors as MagicISO 5.5 cuts it, each
+# compressed (type 5), stored when that doesn't help (1) or zeros (3).
+
+UIF_PASSWORD = "abcdef"
+
+DES_PC1 = [57, 49, 41, 33, 25, 17, 9, 1, 58, 50, 42, 34, 26, 18, 10, 2, 59, 51, 43, 35, 27, 19, 11, 3, 60, 52, 44, 36,
+           63, 55, 47, 39, 31, 23, 15, 7, 62, 54, 46, 38, 30, 22, 14, 6, 61, 53, 45, 37, 29, 21, 13, 5, 28, 20, 12, 4]
+DES_PC2 = [14, 17, 11, 24, 1, 5, 3, 28, 15, 6, 21, 10, 23, 19, 12, 4, 26, 8, 16, 7, 27, 20, 13, 2,
+           41, 52, 31, 37, 47, 55, 30, 40, 51, 45, 33, 48, 44, 49, 39, 56, 34, 53, 46, 42, 50, 36, 29, 32]
+DES_IP = [58, 50, 42, 34, 26, 18, 10, 2, 60, 52, 44, 36, 28, 20, 12, 4, 62, 54, 46, 38, 30, 22, 14, 6, 64, 56, 48, 40, 32, 24, 16, 8,
+          57, 49, 41, 33, 25, 17, 9, 1, 59, 51, 43, 35, 27, 19, 11, 3, 61, 53, 45, 37, 29, 21, 13, 5, 63, 55, 47, 39, 31, 23, 15, 7]
+DES_FP = [DES_IP.index(i) + 1 for i in range(1, 65)]
+DES_E = [32, 1, 2, 3, 4, 5, 4, 5, 6, 7, 8, 9, 8, 9, 10, 11, 12, 13, 12, 13, 14, 15, 16, 17,
+         16, 17, 18, 19, 20, 21, 20, 21, 22, 23, 24, 25, 24, 25, 26, 27, 28, 29, 28, 29, 30, 31, 32, 1]
+DES_P = [16, 7, 20, 21, 29, 12, 28, 17, 1, 15, 23, 26, 5, 18, 31, 10, 2, 8, 24, 14, 32, 27, 3, 9, 19, 13, 30, 6, 22, 11, 4, 25]
+DES_S = [
+    "e4d12fb83a6c5907 0f74e2d1a6cb9538 41e8d62bfc973a50 fc8249175b3ea06d",
+    "f18e6b34972dc05a 3d47f28ec01a69b5 0e7ba4d158c6932f d8a13f42b67c05e9",
+    "a09e63f51dc7b428 d709346a285ecbf1 d6498f30b12c5ae7 1ad069874fe3b52c",
+    "7de3069a1285bc4f d8b56f03472c1ae9 a690cb7df13e5284 3f06a1d8945bc72e",
+    "2c417ab6853fd0e9 eb2c47d150fa3986 421bad78f9c5630e b8c71e2d6f09a453",
+    "c1af92680d34e75b af427c9561de0b38 9ef528c3704a1db6 432c95fabe17608d",
+    "4b2ef08d3c975a61 d0b7491ae35c2f86 14bdc37eaf680592 6bd814a7950fe23c",
+    "d2846fb1a93e50c7 1fd8a374c56b0e92 7b419ce206adf358 21e74a8dfc90356b"]
+DES_S = [[int(c, 16) for c in row.replace(" ", "")] for row in DES_S]
+DES_SHIFTS = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1]
+
+
+def des_permute(x, table, bits):
+    r = 0
+    for t in table:
+        r = (r << 1) | ((x >> (bits - t)) & 1)
+    return r
+
+
+def des_subkeys(key):
+    cd = des_permute(int.from_bytes(key, "big"), DES_PC1, 64)
+    c, d = cd >> 28, cd & 0xFFFFFFF
+    keys = []
+    for s in DES_SHIFTS:
+        c = ((c << s) | (c >> (28 - s))) & 0xFFFFFFF
+        d = ((d << s) | (d >> (28 - s))) & 0xFFFFFFF
+        keys.append(des_permute((c << 28) | d, DES_PC2, 56))
+    return keys
+
+
+def des_block(block, keys):
+    b = des_permute(int.from_bytes(block, "big"), DES_IP, 64)
+    l, r = b >> 32, b & 0xFFFFFFFF
+    for k in keys:
+        x = des_permute(r, DES_E, 32) ^ k
+        s = 0
+        for j in range(8):
+            six = (x >> (42 - 6 * j)) & 0x3F
+            s = (s << 4) | DES_S[j][((six >> 4) & 2 | six & 1) * 16 + ((six >> 1) & 0xF)]
+        l, r = r, l ^ des_permute(s, DES_P, 32)
+    return des_permute((r << 32) | l, DES_FP, 64).to_bytes(8, "big")
+
+
+def uif_key(password):
+    """the password as 32 bytes, its four 64-bit words added: the DES key"""
+    k = password.encode()[:31].ljust(32, b"\0")
+    return (sum(struct.unpack("<4Q", k)) & 0xFFFFFFFFFFFFFFFF).to_bytes(8, "little")
+
+
+def uif_encrypt(data, keys):
+    """DES-ECB over each whole 8 bytes; a shorter tail stays as it is"""
+    n = len(data) & ~7
+    return b"".join(des_block(data[i:i + 8], keys) for i in range(0, n, 8)) + data[n:]
+
+
+def uif(iso, version=1, password=None, fixed_key=0):
+    import lzma
+    keys = None
+    if password is not None:
+        keys = des_subkeys(uif_key(password))
+    elif fixed_key:
+        keys = des_subkeys(uif_key("FAngS)snOt32"))   # MagicISO's first built-in key
+    sectors = len(iso) // 2048
+
+    def pack(raw):
+        if version < 3:
+            return zlib.compress(raw, 9)
+        alone = lzma.compress(raw, format=lzma.FORMAT_ALONE, preset=6)
+        return b"\0" + alone   # no x86 filter, LZMA properties, size, the stream
+
+    data = b""
+    table = b""
+    num = 0
+    for first in range(0, sectors, 128):
+        raw = iso[first * 2048:(first + 128) * 2048]
+        count = len(raw) // 2048
+        if raw.count(0) == len(raw):
+            table += struct.pack("<QIIII", 0, 0, first, count, 3)
+        else:
+            packed, kind = pack(raw), 5
+            if len(packed) >= len(raw):
+                packed, kind = raw, 1
+            if keys:
+                packed = uif_encrypt(packed, keys)
+            table += struct.pack("<QIIII", len(data), len(packed), first, count, kind)
+            data += packed
+        num += 1
+    ztable = pack(table)
+    if keys:
+        ztable = uif_encrypt(ztable, keys)
+    blhr = b"blhr" + struct.pack("<III", len(ztable) + 8, 1, num) + ztable
+
+    def bbis(pos, k1=0):
+        return (b"bbis" + struct.pack("<IHHHHIIIQI", 64, version, 8, 0, 0, sectors, 2048, 0, pos, len(blhr) + 64)
+                + hashlib.md5((password or "").encode()).digest() + bytes([k1, 0, 0, 0]) + b"\0" * 4)
+
+    pos = len(data)
+    if password is None:
+        return data + blhr + bbis(pos, fixed_key)
+    # the real header, encrypted, after "bsdr"; the table after that
+    return data + b"bsdr" + struct.pack("<I", 64) + uif_encrypt(bbis(pos), keys) + blhr + bbis(pos)
+
+
+def magiciso(out):
+    import shutil
+    import subprocess
+    import tempfile
+    if not shutil.which("xorriso"):
+        print("xorriso not found: the .uif fixtures are not written")
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        iso = os.path.join(tmp, "tree.iso")
+        env = dict(os.environ, SOURCE_DATE_EPOCH="1700000000")
+        subprocess.run(["xorriso", "-as", "mkisofs", "-quiet", "-J", "-R", "-V", "TREE", "-o", iso,
+                        os.path.join(out, "tree")], check=True, env=env)
+        with open(iso, "rb") as f:
+            image = f.read()
+    write(out, "magiciso-v1.uif", uif(image))
+    write(out, "magiciso-v1-password.uif", uif(image, password=UIF_PASSWORD))
+    write(out, "magiciso-v3-lzma-key.uif", uif(image, version=3, fixed_key=1))
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -754,6 +896,7 @@ def main():
     unity(out)
     inno(out)
     installshield(out)
+    magiciso(out)
 
 
 if __name__ == "__main__":

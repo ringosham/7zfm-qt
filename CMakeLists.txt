@@ -79,6 +79,7 @@ add_library(7zcore OBJECT
   src/formats/disc/DiscContainers.cpp
   src/formats/disc/DiscChd.cpp
   src/formats/disc/DiscPowerIso.cpp
+  src/formats/disc/DiscUif.cpp
 )
 # Same defines as upstream 7zip_gcc.mak (formats linked statically, no
 # Z7_EXTERNAL_CODECS, RAR enabled).
