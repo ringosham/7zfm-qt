@@ -16,8 +16,15 @@
 //   whole 8 bytes in ECB mode, of the table and every block). From version
 //   2 a key setting may pick one of 16 keys built into MagicISO instead.
 //
-// Not done: images of mixed tracks (type 9: a .bin with its .cue), and
-// MagicISO's other obfuscation (key setting 2).
+// Images of a CD with several tracks (type 9; MagicISO's "Compress CD/DVD
+// Image" of a .cue, .mds, .ccd or .nrg) hold the image file itself: after
+// the block table a "blms" block (the tracks, as MagicISO read them) and a
+// "blss" block with the format the image came in (0 ISO, 1 CUE, 2 MDS, 3
+// CCD, 4 NRG) and that format's sheet, the .cue for instance (for CCD: two
+// sizes, the .ccd and the .sub). Both packed as the table is. The image
+// shows as its file (a .bin opens at its tracks), the sheet beside it.
+//
+// Not done: MagicISO's other obfuscation (key setting 2).
 
 #include "Common/ComTry.h"
 #include "Common/MyBuffer.h"
@@ -172,6 +179,7 @@ class CHandler Z7_final: public CBlockHandler
   HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override;
   void Close2() Z7_override { _entries.clear(); _cached = -1; _encrypted = false; _version = 0; }
   HRESULT Decode(const Byte *in, size_t inSize, Byte *out, size_t outSize) const;
+  HRESULT ReadPacked(IInStream *stream, UInt64 pos, UInt32 packSize, bool compressed, UInt32 size, CByteBuffer &out);
   void SetKey(const char *pw, unsigned len);
 public:
   CHandler(): _version(0), _encrypted(false), _cached(-1) {}
@@ -232,6 +240,32 @@ HRESULT CHandler::Decode(const Byte *in, size_t inSize, Byte *out, size_t outSiz
   return S_OK;
 }
 
+// a block of the header area: (packSize) bytes at (pos), (size) once unpacked
+HRESULT CHandler::ReadPacked(IInStream *stream, UInt64 pos, UInt32 packSize, bool compressed, UInt32 size, CByteBuffer &out)
+{
+  if (size > (1 << 24) || packSize > (1 << 26))
+    return S_FALSE;
+  CByteBuffer raw(packSize);
+  RINOK(NItemArc::ReadAt(stream, pos, raw, packSize))
+  out.Alloc(size);
+  if (!compressed)
+  {
+    if (packSize < size)
+      return S_FALSE;
+    memcpy(out, raw, size);
+    return S_OK;
+  }
+  if (_encrypted)
+    _des.Decrypt(raw, raw.Size());
+  return Decode(raw, raw.Size(), out, size);
+}
+
+static UString BaseOf(const UString &name)
+{
+  const int dot = name.ReverseFind_Dot();
+  return dot > 0 ? name.Left((unsigned)dot) : name;
+}
+
 HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
 {
   Close2();
@@ -277,8 +311,8 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
   const UInt32 sectorSize = GetUi32(b + 20);
   const UInt32 lastDiff = GetUi32(b + 24);
   const Byte key1 = b[56], key2 = b[57];
-  if (imageType != 8 || sectorSize == 0 || sectorSize > (1 << 16))
-    return S_FALSE;   // mixed images: not supported
+  if ((imageType != 8 && imageType != 9) || sectorSize == 0 || sectorSize > (1 << 16))
+    return S_FALSE;
   if (_version >= 2)
   {
     if (key2 == 2)
@@ -302,24 +336,9 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
   const UInt32 num = GetUi32(h + 12);
   if (num == 0 || num > (1 << 24) || tableSize < 8 || tableSize - 8 > fileSize)
     return S_FALSE;
-  CByteBuffer table((size_t)num * 24);
-  {
-    CByteBuffer raw(tableSize - 8);
-    RINOK(NItemArc::ReadAt(stream, blhrPos + 16, raw, raw.Size()))
-    if (compressed)
-    {
-      if (_encrypted)
-        _des.Decrypt(raw, raw.Size());
-      if (Decode(raw, raw.Size(), table, table.Size()) != S_OK)
-        return S_FALSE;
-    }
-    else
-    {
-      if (raw.Size() < table.Size())
-        return S_FALSE;
-      memcpy(table, raw, table.Size());
-    }
-  }
+  CByteBuffer table;
+  if (ReadPacked(stream, blhrPos + 16, tableSize - 8, compressed, num * 24, table) != S_OK)
+    return S_FALSE;
   for (UInt32 i = 0; i < num; i++)
   {
     const Byte *p = table + (size_t)i * 24;
@@ -342,9 +361,83 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
   if (lastDiff && lastDiff < sectorSize)
     _size -= sectorSize - lastDiff;
   _phySize = fileSize;
-  _name = ReplaceExtension(GetArcName(callback), "iso");
-  if (_name.IsEmpty())
-    _name = "image.iso";
+  UString base = BaseOf(GetArcName(callback));
+  if (base.IsEmpty())
+    base = "image";
+  _name = base + L".iso";
+  if (imageType == 9)
+  {
+    // the tracks ("blms"), then the image's own format and sheet ("blss")
+    _name = base + L".bin";
+    const UInt64 msPos = blhrPos + 8 + tableSize;
+    Byte m[16];
+    if (msPos + 16 <= fileSize && NItemArc::ReadAt(stream, msPos, m, 16) == S_OK && memcmp(m, "blms", 4) == 0
+        && GetUi32(m + 4) >= 8)
+    {
+      const UInt64 ssPos = msPos + 8 + GetUi32(m + 4);
+      Byte t[20];
+      if (ssPos + 20 <= fileSize && NItemArc::ReadAt(stream, ssPos, t, 20) == S_OK && memcmp(t, "blss", 4) == 0
+          && GetUi32(t + 4) >= 12)
+      {
+        const UInt32 format = GetUi32(t + 16);
+        CByteBuffer sheet;
+        const UInt32 sheetSize = GetUi32(t + 12);
+        if (sheetSize != 0 && ReadPacked(stream, ssPos + 20, GetUi32(t + 4) - 12, GetUi32(t + 8) != 0, sheetSize, sheet) != S_OK)
+          return S_FALSE;
+        static const char * const kExt[5] = { "iso", "bin", "mdf", "img", "nrg" };
+        if (format < 5)
+          _name = base + L'.' + UString(kExt[format]);
+        if (format == 1 && sheet.Size() != 0)
+        {
+          // the .bin as the .cue names it, if it names one file
+          AString cue;
+          cue.SetFrom_CalcLen((const char *)(const Byte *)sheet, (unsigned)sheet.Size());
+          const int f = cue.Find("FILE \"");
+          if (f >= 0 && cue.Find("FILE \"", (unsigned)f + 1) < 0)
+          {
+            const int end = cue.Find('"', (unsigned)f + 6);
+            if (end > f + 6)
+            {
+              AString file = cue.Mid((unsigned)f + 6, (unsigned)end - (unsigned)f - 6);
+              const int slash = MyMax(file.ReverseFind('\\'), file.ReverseFind('/'));
+              if (slash >= 0)
+                file.DeleteFrontal((unsigned)slash + 1);
+              if (!file.IsEmpty())
+              {
+                _name = MultiByteToUnicodeString(file, CP_ACP);
+                base = BaseOf(_name);
+              }
+            }
+          }
+          CExtra &e = _extras.AddNew();
+          e.Name = base + L".cue";
+          e.Data = sheet;
+        }
+        else if (format == 2 && sheet.Size() != 0)
+        {
+          CExtra &e = _extras.AddNew();
+          e.Name = base + L".mds";
+          e.Data = sheet;
+        }
+        else if (format == 3 && sheet.Size() >= 8)
+        {
+          const UInt32 ccd = GetUi32(sheet), sub = GetUi32(sheet + 4);
+          if (ccd <= sheet.Size() - 8 && sub <= sheet.Size() - 8 - ccd)
+          {
+            CExtra &e = _extras.AddNew();
+            e.Name = base + L".ccd";
+            e.Data.CopyFrom(sheet + 8, ccd);
+            if (sub != 0)
+            {
+              CExtra &e2 = _extras.AddNew();
+              e2.Name = base + L".sub";
+              e2.Data.CopyFrom(sheet + 8 + ccd, sub);
+            }
+          }
+        }
+      }
+    }
+  }
   _method = _version < 3 ? "Deflate" : "LZMA";
   return S_OK;
 }

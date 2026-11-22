@@ -9,6 +9,7 @@
 #include "Windows/PropVariant.h"
 
 #include "7zip/Common/ProgressUtils.h"
+#include "7zip/Common/StreamObjects.h"
 #include "7zip/Common/StreamUtils.h"
 #include "7zip/Compress/CopyCoder.h"
 #include "7zip/PropID.h"
@@ -944,12 +945,13 @@ Z7_COM7F_IMF(CBlockHandler::Close())
   _phySize = 0;
   _name.Empty();
   _dataError = false;
+  _extras.Clear();
   return S_OK;
 }
 
 Z7_COM7F_IMF(CBlockHandler::GetNumberOfItems(UInt32 *numItems))
 {
-  *numItems = _blockSize ? 1 : 0;
+  *numItems = _blockSize ? 1 + _extras.Size() : 0;
   return S_OK;
 }
 
@@ -967,9 +969,24 @@ Z7_COM7F_IMF(CBlockHandler::GetArchiveProperty(PROPID propID, PROPVARIANT *value
   return S_OK;
 }
 
-Z7_COM7F_IMF(CBlockHandler::GetProperty(UInt32, PROPID propID, PROPVARIANT *value))
+Z7_COM7F_IMF(CBlockHandler::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *value))
 {
   NCOM::CPropVariant prop;
+  if (index != 0)
+  {
+    if (index - 1 < _extras.Size())
+    {
+      const CExtra &e = _extras[index - 1];
+      switch (propID)
+      {
+        case kpidPath: prop = e.Name; break;
+        case kpidSize: prop = (UInt64)e.Data.Size(); break;
+        default: break;
+      }
+    }
+    prop.Detach(value);
+    return S_OK;
+  }
   switch (propID)
   {
     case kpidPath: prop = _name; break;
@@ -987,7 +1004,15 @@ Z7_COM7F_IMF(CBlockHandler::GetStream(UInt32 index, ISequentialInStream **stream
   COM_TRY_BEGIN
   *stream = NULL;
   if (index != 0)
-    return E_INVALIDARG;
+  {
+    if (index - 1 >= _extras.Size())
+      return E_INVALIDARG;
+    CBufInStream *in = new CBufInStream;
+    CMyComPtr<ISequentialInStream> inRef = in;
+    in->Init(_extras[index - 1].Data, _extras[index - 1].Data.Size(), (IInArchive *)this);
+    *stream = inRef.Detach();
+    return S_OK;
+  }
   CBlockStream *spec = new CBlockStream;
   CMyComPtr<IInStream> s = spec;
   spec->Init(this);
@@ -1002,8 +1027,38 @@ Z7_COM7F_IMF(CBlockHandler::Extract(const UInt32 *indices, UInt32 numItems,
   COM_TRY_BEGIN
   if (numItems == 0)
     return S_OK;
-  if (numItems != (UInt32)(Int32)-1 && (numItems != 1 || indices[0] != 0))
-    return E_INVALIDARG;
+  const bool allFilesMode = numItems == (UInt32)(Int32)-1;
+  if (allFilesMode)
+    numItems = 1 + _extras.Size();
+  bool image = false;
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    const UInt32 index = allFilesMode ? i : indices[i];
+    if (index > _extras.Size())
+      return E_INVALIDARG;
+    if (index == 0)
+      image = true;
+  }
+  // the files that go with the image first: they are small
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    const UInt32 index = allFilesMode ? i : indices[i];
+    if (index == 0)
+      continue;
+    const CExtra &e = _extras[index - 1];
+    CMyComPtr<ISequentialOutStream> out;
+    const Int32 askMode = testMode ? NExtract::NAskMode::kTest : NExtract::NAskMode::kExtract;
+    RINOK(extractCallback->GetStream(index, &out, askMode))
+    if (!testMode && !out)
+      continue;
+    RINOK(extractCallback->PrepareOperation(askMode))
+    if (out)
+      RINOK(WriteStream(out, e.Data, e.Data.Size()))
+    out.Release();
+    RINOK(extractCallback->SetOperationResult(NExtract::NOperationResult::kOK))
+  }
+  if (!image)
+    return S_OK;
   RINOK(extractCallback->SetTotal(_size))
   CMyComPtr<ISequentialOutStream> outStream;
   const Int32 askMode = testMode ?

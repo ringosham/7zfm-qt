@@ -356,6 +356,15 @@ DESC="UIF: the image itself, by Open Inside *"
 check sh -c "CORE_SMOKE_FORMAT='*' '$S' ls '$G/magiciso-v1.uif' | grep -q 'magiciso-v1.iso'"
 DESC="UIF: a wrong password fails"
 check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' ls '$G/magiciso-v1-password.uif' >/dev/null 2>&1"
+# Mixed-mode images, made by MagicISO 5.5's "Compress CD/DVD Image" from the
+# CD fixtures (.cue with audio tracks, .nrg, .mds; one with a password): the
+# image file and its sheet come back as they were
+for f in cue:abc nrg:abc mds:abc password:abcdef; do
+  DESC="UIF: the mixed-mode image magiciso-mixed-${f%%:*}.uif gives its image file and sheet"
+  check sh -c "rm -rf '$T/u' && mkdir -p '$T/u' && CORE_SMOKE_FORMAT='*' CORE_SMOKE_PASSWORD='${f#*:}' '$S' x '$G/magiciso-mixed-${f%%:*}.uif' '$T/u' >/dev/null 2>&1 && cd '$T/u' && for x in *; do grep -q \"  \$x\$\" '$G/magiciso-mixed.sha256' || exit 1; done && sha256sum -c --ignore-missing --quiet '$G/magiciso-mixed.sha256'"
+done
+DESC="UIF: a mixed-mode image opens at its tracks"
+check sh -c "'$S' ls '$G/magiciso-mixed-cue.uif' | grep -q 'Track02.wav'"
 
 # ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
 AC="$SRC/tests/data/ace"

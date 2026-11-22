@@ -198,6 +198,13 @@ protected:
   UString _name;          // the item's
   const char *_method;
   bool _dataError;
+  // small files that go with the image (a .cue), held whole: items 1, 2 ...
+  struct CExtra
+  {
+    UString Name;
+    CByteBuffer Data;
+  };
+  CObjectVector<CExtra> _extras;
 
   virtual HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) = 0;
   virtual void Close2() {}
