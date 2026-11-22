@@ -276,4 +276,11 @@ done
 DESC="Unity: a bundle's serialized file opens by its header"
 check sh -c "'$S' ls '$G/unity-lz4.unity3d' Files/CAB-0123456789abcdef | grep -q TextAsset"
 
+# made by repak (trumank/repak): every pak version, each compression it writes
+for f in unreal-v1.pak unreal-v3-zlib.pak unreal-v5-zlib.pak unreal-v7-gzip.pak unreal-v8a-zlib.pak \
+    unreal-v8b-zlib.pak unreal-v9-zstd.pak unreal-v11.pak unreal-v11-zlib.pak unreal-v11-lz4.pak; do
+  DESC="Unreal: $f extracts"
+  check same_tree "$G/$f"
+done
+
 exit $fail

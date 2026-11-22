@@ -5,7 +5,9 @@ ones). Each format is written as its engine writes it; see the handlers in
 src/formats/game. Run: python3 -I tests/make_gamearchives.py tests/data/game
 
 Every archive holds the same small tree (FILES below), so a test extracts it
-and compares with that.
+and compares with that. The Unreal paks (unreal-*.pak) are made from that
+tree by repak (https://github.com/trumank/repak), not by this script:
+  repak pack --version V11 --compression Zlib tree unreal-v11-zlib.pak
 """
 import hashlib
 import os
