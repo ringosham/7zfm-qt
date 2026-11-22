@@ -351,6 +351,29 @@ DESC="Menu: the CRC SHA result window opens"
 check run --screenshot "$WORK/m-hash.png" --hash SHA256 "$M/content/hello.txt"
 check test -s "$WORK/m-hash.png"
 
+# installers open at the files they hold, not at their launcher's sections
+I="$WORK/setup"
+mkdir -p "$I" && cp "$SRC/tests/data/game/inno6-setup.exe" "$SRC/tests/data/game/issetup-xor.exe" "$I/"
+DESC="GUI: an Inno Setup setup.exe opens at its files (F5 copies app/ out)"
+check run "$I/inno6-setup.exe" --keys "F5,Return" --screenshot "$WORK/is1.png"
+check diff -r "$SRC/tests/data/game/tree" "$I/app"
+DESC="GUI: an InstallShield setup.exe opens at its files (F5 copies data/ out)"
+check run "$I/issetup-xor.exe" --keys "F5,Return" --screenshot "$WORK/is2.png"
+check diff -r "$SRC/tests/data/game/tree/data" "$I/data"
+
+# a UPX-packed executable extracts as the one upx -d makes (only with upx)
+if command -v upx >/dev/null 2>&1; then
+  U="$WORK/upx"
+  mkdir -p "$U/in" && cp "$SMOKE" "$U/in/packed.exe"
+  upx -q -q -q "$U/in/packed.exe" >/dev/null 2>&1
+  upx -d -q -q -q -o "$U/unpacked" "$U/in/packed.exe" >/dev/null 2>&1
+  DESC="GUI: Extract on a UPX-packed executable gives the unpacked one"
+  check run "$U/in/" --select packed.exe --action extract --keys "Return" --screenshot "$WORK/upx.png"
+  check cmp -s "$U/in/packed/packed.exe" "$U/unpacked"
+else
+  echo "SKIP: GUI UPX (upx not installed)"
+fi
+
 DESC="GUI: temp folders are removed on exit"
 check sh -c "[ -z \"\$(find '$WORK/cache' -mindepth 2 -maxdepth 3 -name '7zO*' 2>/dev/null)\" ]"
 exit $fail
