@@ -295,6 +295,22 @@ for f in data1.cab data2.cab; do
   check same_tree "$G/installshield5/$f"
 done
 
+# InstallShield 3 (src/formats/installer/InstallShield3.cpp): made from the
+# tree by InstallShield 3.0's ICOMP.EXE, the split sets by its SPLIT.EXE, with
+# a file of their own (noise.bin stored, words.txt compressed) running over
+# the volumes
+I3="$G/installshield3"
+for f in tree.z tree-fast.z tree-stored.z; do
+  DESC="InstallShield 3: $f extracts"
+  check same_tree "$I3/$f"
+done
+for f in stored.1:noise.bin stored.3:noise.bin stored.5:noise.bin packed.1:words.txt packed.2:words.txt; do
+  DESC="InstallShield 3: the split set ${f%%:*} belongs to extracts"
+  check sh -c "rm -rf '$T/g'; '$S' x '$I3/${f%%:*}' '$T/g' >/dev/null 2>&1 && cd '$T/g' && grep '${f#*:}' '$I3/extra.sha256' | sha256sum -c >/dev/null && rm '${f#*:}' && diff -r '$G/tree' '$T/g' >/dev/null"
+done
+DESC="InstallShield 3: a volume without the rest of its set opens with its own files"
+check sh -c "rm -rf '$T/i3' && mkdir -p '$T/i3' && cp '$I3/stored.3' '$T/i3/' && '$S' t '$T/i3/stored.3' | grep -q 'errors: 0'"
+
 # PowerISO DAA (src/formats/disc/DiscPowerIso.cpp): made by PowerISO 1.6 for
 # Linux (version 0x100) and PowerISO 9.5's piso.exe (0x110, split in 1 MB parts)
 DA="$SRC/tests/data/daa"

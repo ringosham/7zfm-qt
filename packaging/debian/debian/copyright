@@ -56,6 +56,11 @@ License: Zlib
 Comment: a port of innoextract; the full notice is
  src/formats/installer/LICENSE.innoextract
 
+Files: src/formats/installer/blast.c src/formats/installer/blast.h
+Copyright: 2003, 2012, 2013 Mark Adler
+License: Zlib
+Comment: blast, from zlib's contrib/blast, unchanged
+
 Files: src/formats/installer/InstallShield.cpp
 Copyright: 2003-2023 David Eriksson and contributors (unshield)
 License: Expat

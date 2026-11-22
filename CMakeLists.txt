@@ -74,6 +74,8 @@ add_library(7zcore OBJECT
   src/formats/game/UnrealPak.cpp
   src/formats/installer/InnoSetup.cpp
   src/formats/installer/InstallShield.cpp
+  src/formats/installer/InstallShield3.cpp
+  src/formats/installer/blast.c
   src/formats/disc/DiscImage.cpp
   src/formats/disc/DiscTracks.cpp
   src/formats/disc/DiscContainers.cpp
