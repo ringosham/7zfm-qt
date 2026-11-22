@@ -291,4 +291,14 @@ check sh -c "'$S' t '$G/inno6-setup.exe' | grep -q 'errors: 0'"
 DESC="InstallShield: a version 6 cabinet (deflate and obfuscated files) extracts, MD5s checked"
 check same_tree "$G/installshield/data1.cab"
 
+# PowerISO DAA (src/formats/disc/DiscPowerIso.cpp): made by PowerISO 1.6 for
+# Linux (version 0x100) and PowerISO 9.5's piso.exe (0x110, split in 1 MB parts)
+DA="$SRC/tests/data/daa"
+for f in tree-v100.daa tree-v110.daa; do
+  DESC="DAA: $f gives its ISO's files"
+  check sh -c "rm -rf '$T/d'; '$S' x '$DA/$f' '$T/d' >/dev/null 2>&1 && diff -r '$G/tree' '$T/d' >/dev/null"
+done
+DESC="DAA: a split image (.part01.daa, .part02.daa)"
+check sh -c "rm -rf '$T/d'; '$S' x '$DA/split.part01.daa' '$T/d' >/dev/null 2>&1 && cd '$T/d' && sha256sum -c '$DA/noise.sha256' >/dev/null"
+
 exit $fail
