@@ -260,4 +260,11 @@ DESC="KiriKiri: a damaged file fails its Adler-32"
 python3 -I -c 'import sys; d=bytearray(open(sys.argv[1],"rb").read()); i=d.find(bytes(range(40,60))); d[i]^=0xFF; open(sys.argv[2],"wb").write(d)' "$G/kirikiri.xp3" "$T/bad.xp3"
 check sh -c "rm -rf '$T/b'; ! '$S' x '$T/bad.xp3' '$T/b' >/dev/null 2>&1"
 
+for f in morrowind.bsa oblivion.bsa skyrim.bsa skyrim-stored.bsa skyrimse.bsa fallout4.ba2 starfield.ba2; do
+  DESC="Bethesda: $f extracts"
+  check same_tree "$G/$f"
+done
+DESC="Bethesda: a BA2 texture gets its DDS header back"
+check sh -c "'$S' cat '$G/fallout4-textures.ba2' textures/stone.dds | cmp -s - '$G/tree-stone.dds'"
+
 exit $fail

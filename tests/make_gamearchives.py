@@ -295,6 +295,188 @@ def kirikiri(out):
     write(out, "kirikiri-game.exe", b"MZ" + b"\x90" * 8190 + xp3())
 
 
+# ---------- Bethesda .bsa / .ba2 ----------
+
+def lz4_block(data):
+    """an LZ4 block of literals only (valid, not compressed)"""
+    n = len(data)
+    if n < 15:
+        return bytes([n << 4]) + data
+    out = bytearray([0xF0])
+    rest = n - 15
+    while rest >= 255:
+        out.append(255)
+        rest -= 255
+    out.append(rest)
+    return bytes(out) + data
+
+
+def lz4_frame(data):
+    """an LZ4 frame with uncompressed blocks"""
+    out = bytearray(b"\x04\x22\x4d\x18")
+    flg, bd = 0x60, 0x40          # version 1, independent blocks; 64 KB blocks
+    out += bytes([flg, bd, (xxh32(bytes([flg, bd])) >> 8) & 0xFF])
+    for i in range(0, len(data), 65536):
+        blk = data[i:i + 65536]
+        out += struct.pack("<I", len(blk) | 0x80000000) + blk
+    out += b"\0\0\0\0"
+    return bytes(out)
+
+
+def xxh32(data, seed=0):
+    P1, P2, P3, P4, P5 = 2654435761, 2246822519, 3266489917, 668265263, 374761393
+    M = 0xFFFFFFFF
+    rotl = lambda x, r: ((x << r) | (x >> (32 - r))) & M
+    n = len(data)
+    i = 0
+    if n >= 16:
+        v = [(seed + P1 + P2) & M, (seed + P2) & M, seed, (seed - P1) & M]
+        while i + 16 <= n:
+            for k in range(4):
+                v[k] = (rotl((v[k] + struct.unpack_from("<I", data, i + 4 * k)[0] * P2) & M, 13) * P1) & M
+            i += 16
+        h = (rotl(v[0], 1) + rotl(v[1], 7) + rotl(v[2], 12) + rotl(v[3], 18)) & M
+    else:
+        h = (seed + P5) & M
+    h = (h + n) & M
+    while i + 4 <= n:
+        h = (rotl((h + struct.unpack_from("<I", data, i)[0] * P3) & M, 17) * P4) & M
+        i += 4
+    while i < n:
+        h = (rotl((h + data[i] * P5) & M, 11) * P1) & M
+        i += 1
+    h ^= h >> 15; h = (h * P2) & M; h ^= h >> 13; h = (h * P3) & M; h ^= h >> 16
+    return h
+
+
+def bsa(version, compress=True, embed=False):
+    folders = {}
+    for name, data in FILES:
+        d, _, f = name.rpartition("/")
+        folders.setdefault(d, []).append((f, data))
+    flags = 1 | 2 | (4 if compress else 0) | (0x100 if embed else 0)
+    rec = 24 if version == 105 else 16
+    names = b"".join(f.encode() + b"\0" for d in folders for f, _ in folders[d])
+    dirnames_len = sum(len(d) + 1 for d in folders)
+    head_len = 36
+    blocks_len = sum(1 + len(d.replace("/", "\\")) + 1 + 16 * len(folders[d]) for d in folders)
+    data_start = head_len + rec * len(folders) + blocks_len + len(names)
+    body = bytearray()
+    recs = b""
+    blocks = b""
+    for d in folders:
+        dn = d.replace("/", "\\").encode() + b"\0"
+        off = head_len + rec * len(folders) + len(blocks) + dirnames_len  # informational
+        if version == 105:
+            recs += struct.pack("<QIIQ", 0, len(folders[d]), 0, off)
+        else:
+            recs += struct.pack("<QII", 0, len(folders[d]), off)
+        blocks += bytes([len(dn)]) + dn
+        for k, (f, data) in enumerate(folders[d]):
+            payload = b""
+            if embed:
+                full = ((d + "/") if d else "") + f
+                full = full.replace("/", "\\").encode()
+                payload += bytes([len(full)]) + full
+            # the second file of each folder flips the archive's compression
+            flip = (k == 1)
+            comp = compress != flip
+            if comp:
+                packed = lz4_frame(data) if version == 105 else zlib.compress(data)
+                payload += struct.pack("<I", len(data)) + packed
+            else:
+                payload += data
+            size = len(payload) | (0x40000000 if flip else 0)
+            blocks += struct.pack("<QII", 0, size, data_start + len(body))
+            body += payload
+    head = b"BSA\0" + struct.pack("<IIIIIIII", version, head_len, flags, len(folders),
+                                     len(FILES), dirnames_len, len(names), 0)
+    out = head + recs + blocks + names
+    assert len(out) == data_start, (len(out), data_start)
+    return out + bytes(body)
+
+
+def bsa_morrowind():
+    n = len(FILES)
+    names = [name.replace("/", "\\").encode() + b"\0" for name, _ in FILES]
+    name_offsets = []
+    o = 0
+    for nm in names:
+        name_offsets.append(o)
+        o += len(nm)
+    hash_offset = n * 8 + n * 4 + o
+    recs = b""
+    data = b""
+    for _, d in FILES:
+        recs += struct.pack("<II", len(d), len(data))
+        data += d
+    return (struct.pack("<III", 0x100, hash_offset, n) + recs
+            + b"".join(struct.pack("<I", x) for x in name_offsets) + b"".join(names)
+            + b"\0" * (8 * n) + data)
+
+
+def ba2_gnrl(version):
+    n = len(FILES)
+    head_len = 24 + (8 if version in (2, 3) else 0) + (4 if version == 3 else 0)
+    data_start = head_len + 36 * n
+    recs = b""
+    body = b""
+    for name, data in FILES:
+        ext = name.rpartition(".")[2].encode()[:4].ljust(4, b"\0")
+        if version == 3:
+            packed = lz4_block(data) if data else b""
+        else:
+            packed = zlib.compress(data) if len(data) > 100 else b""
+        stored = packed if packed else data
+        recs += struct.pack("<I4sIIQIII", 0, ext, 0, 0, data_start + len(body), len(packed), len(data), 0xBAADF00D)
+        body += stored
+    names = b"".join(struct.pack("<H", len(nm)) + nm for nm in (name.replace("/", "\\").encode() for name, _ in FILES))
+    head = b"BTDX" + struct.pack("<I4sIQ", version, b"GNRL", n, data_start + len(body))
+    if version in (2, 3):
+        head += struct.pack("<II", 0, 0)
+    if version == 3:
+        head += struct.pack("<I", 3)
+    return head + recs + body + names
+
+
+def ba2_dx10():
+    """one BC1 (DXT1) 8x8 texture with 4 mips, in 2 chunks, and its DDS"""
+    mips = [bytes((i * 7 + m) & 0xFF for i in range(max(1, (8 >> m) // 4) ** 2 * 8)) for m in range(4)]
+    chunk1 = mips[0]
+    chunk2 = b"".join(mips[1:])
+    head_len = 24
+    rec_len = 24 + 2 * 24
+    data_start = head_len + rec_len
+    c1 = zlib.compress(chunk1)
+    body = c1 + chunk2
+    rec = struct.pack("<I4sIBBHHHBBH", 0, b"dds\0", 0, 0, 2, 24, 8, 8, 4, 71, 0)
+    rec += struct.pack("<QIIHHI", data_start, len(c1), len(chunk1), 0, 0, 0xBAADF00D)
+    rec += struct.pack("<QIIHHI", data_start + len(c1), 0, len(chunk2), 1, 3, 0xBAADF00D)
+    name = b"textures\\stone.dds"
+    names = struct.pack("<H", len(name)) + name
+    head = b"BTDX" + struct.pack("<I4sIQ", 1, b"DX10", 1, data_start + len(body))
+    # the DDS the handler must give
+    dds = bytearray(4 + 124)
+    dds[0:4] = b"DDS "
+    struct.pack_into("<IIIIIII", dds, 4, 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, 8, 8, 32, 0, 4)
+    struct.pack_into("<II4s", dds, 4 + 72, 32, 4, b"DXT1")
+    struct.pack_into("<I", dds, 4 + 104, 0x1000 | 0x8 | 0x400000)
+    return head + rec + body + names, bytes(dds) + chunk1 + chunk2
+
+
+def bethesda(out):
+    write(out, "oblivion.bsa", bsa(103))
+    write(out, "skyrim.bsa", bsa(104, embed=True))
+    write(out, "skyrim-stored.bsa", bsa(104, compress=False))
+    write(out, "skyrimse.bsa", bsa(105))
+    write(out, "morrowind.bsa", bsa_morrowind())
+    write(out, "fallout4.ba2", ba2_gnrl(1))
+    write(out, "starfield.ba2", ba2_gnrl(3))
+    ba2, dds = ba2_dx10()
+    write(out, "fallout4-textures.ba2", ba2)
+    write(out, "tree-stone.dds", dds)
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -303,6 +485,7 @@ def main():
     renpy(out)
     rpgmaker(out)
     kirikiri(out)
+    bethesda(out)
 
 
 if __name__ == "__main__":
