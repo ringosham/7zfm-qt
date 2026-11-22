@@ -14,6 +14,7 @@
 // reader in CWinPathZip, which passes everything through but kpidPath.
 
 #include "WinPathZip.h"
+#include "UpxWrap.h"
 
 #include "Common/MyCom.h"
 #include "Common/MyString.h"
@@ -122,4 +123,6 @@ void Z7Qt_FixWinPathFormats(CCodecs *codecs)
     g_ZipCreateInArchive = f.CreateInArchive;
     f.CreateInArchive = CreateWinPathZip;
   }
+  // and UPX-packed executables (UpxWrap.cpp), from the same places
+  Z7Qt_WrapUpxFormats(codecs);
 }

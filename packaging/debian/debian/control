@@ -30,6 +30,7 @@ Package: 7zfm-qt
 Architecture: any
 Depends: qt6-qpa-plugins, ${misc:Depends}, ${shlibs:Depends}
 Recommends: qt6-wayland, xdg-utils
+Suggests: upx-ucl
 Description: Qt port of the 7-Zip File Manager
  7zfm-qt is the Windows 7-Zip File Manager (7zFM) on Qt 6, built on the
  unmodified 7-Zip engine. It opens archives, disk images and partitions by

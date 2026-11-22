@@ -63,6 +63,7 @@ add_library(7zcore OBJECT
   src/formats/LzipHandler.cpp
   src/formats/AceHandler.cpp
   src/formats/WinPathZip.cpp
+  src/formats/UpxWrap.cpp
   src/formats/common/ItemArchive.cpp
   src/formats/game/GodotPck.cpp
   src/formats/game/RpaHandler.cpp

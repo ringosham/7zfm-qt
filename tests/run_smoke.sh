@@ -316,4 +316,15 @@ for f in pass.ace pass-solid.ace; do
   check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' t '$AC/$f' >/dev/null 2>&1"
 done
 
+# UPX (src/formats/UpxWrap.cpp): only with upx installed
+if command -v upx >/dev/null 2>&1; then
+  cp "$S" "$T/packed"
+  upx -q -q -q "$T/packed" >/dev/null 2>&1
+  upx -d -q -q -q -o "$T/unpacked" "$T/packed" >/dev/null 2>&1
+  DESC="UPX: a packed executable shows the unpacked one, as upx -d makes it"
+  check sh -c "'$S' cat '$T/packed' packed | cmp -s - '$T/unpacked'"
+else
+  echo "SKIP: UPX (upx not installed)"
+fi
+
 exit $fail

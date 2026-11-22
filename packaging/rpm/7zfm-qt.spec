@@ -35,6 +35,7 @@ BuildRequires:  xz
 %endif
 Recommends:     qt6-qtwayland
 Recommends:     xdg-utils
+Suggests:       upx
 
 %description
 7zfm-qt is the Windows 7-Zip File Manager (7zFM) on Qt 6, built on the
