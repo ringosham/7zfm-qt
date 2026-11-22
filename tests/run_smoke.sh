@@ -288,7 +288,7 @@ check sh -c "rm -rf '$T/inno'; '$S' x '$G/inno6-setup.exe' '$T/inno' >/dev/null 
 DESC="core_smoke t tests without writing"
 check sh -c "'$S' t '$G/inno6-setup.exe' | grep -q 'errors: 0'"
 
-DESC="InstallShield: a version 6 cabinet (deflate and obfuscated files) extracts, MD5s checked"
+DESC="InstallShield: a version 6 cabinet (deflate and obfuscated files, a chain of links) extracts, MD5s checked"
 check same_tree "$G/installshield/data1.cab"
 for f in data1.cab data2.cab; do
   DESC="InstallShield: version 5 cabinets with whole deflate streams, a file split over them ($f)"

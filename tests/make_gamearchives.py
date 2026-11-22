@@ -673,6 +673,8 @@ def inno(out):
 
 
 # ---------- InstallShield cabinet, version 6 (unshield's reading) ----------
+# readme.txt is there twice more, as links to it and then to the first link,
+# saying volume 2 as InstallShield 6 does: the data is the first one's
 
 def is_obfuscate(data):
     out = bytearray()
@@ -694,12 +696,16 @@ def installshield_cab():
         off = len(strings)
         strings += t.encode() + b"\0"
         return off
-    count = len(dirs) + len(FILES)
+    links = 2
+    num_recs = len(FILES) + links
+    count = len(dirs) + num_recs
     head_len = count * 4                    # name offsets, then strings, then records
     dir_name_offs = [add_string(d.replace("/", "\\")) for d in dirs]
     file_name_offs = [add_string(n.rpartition("/")[2]) for n, _ in FILES]
+    readme = [n for n, _ in FILES].index("readme.txt")
+    file_name_offs += [file_name_offs[readme]] * links
     rec_rel = head_len + len(strings)
-    data_start = desc_off + table_rel + rec_rel + 0x57 * len(FILES)
+    data_start = desc_off + table_rel + rec_rel + 0x57 * num_recs
     data = b""
     recs = b""
     for i, (name, content) in enumerate(FILES):
@@ -718,17 +724,26 @@ def installshield_cab():
         d = dirs.index(name.rpartition("/")[0])
         rec = struct.pack("<HQQQ", flags, len(content), pack, off) + hashlib.md5(content).digest() + b"\0" * 16
         rec += struct.pack("<IH", head_len + file_name_offs[i], d) + b"\0" * 12
-        rec += struct.pack("<IIBH", 0, 0, 0, 1)
+        # links: previous, next, flags (1: has a previous, 2: has a next)
+        rec += struct.pack("<IIBH", 0, len(FILES) if i == readme else 0, 2 if i == readme else 0, 1)
         assert len(rec) == 0x57
         recs += rec
+        if i == readme:
+            readme_rec = rec
+    for k in range(links):
+        rec = bytearray(readme_rec)
+        prev = readme if k == 0 else len(FILES) + k - 1
+        nxt = len(FILES) + k + 1 if k + 1 < links else 0
+        struct.pack_into("<IIBH", rec, 76, prev, nxt, 1 | (2 if nxt else 0), 2)
+        recs += bytes(rec)
     names = b"".join(struct.pack("<I", head_len + o) for o in dir_name_offs) + b"".join(struct.pack("<I", head_len + o) for o in file_name_offs)
     table = names + strings + recs
     desc = bytearray(0x30 + 0xE + 71 * 8)
     struct.pack_into("<I", desc, 0x0C, table_rel)
     struct.pack_into("<III", desc, 0x14, len(table), len(table), len(dirs))
-    struct.pack_into("<II", desc, 0x28, len(FILES), rec_rel)
+    struct.pack_into("<II", desc, 0x28, num_recs, rec_rel)
     common = struct.pack("<IIIII", 0x28635349, 0x01006000, 0, desc_off, len(desc))
-    volume = struct.pack("<IIII", data_start, 0, 0, len(FILES) - 1) + b"\0" * 48
+    volume = struct.pack("<IIII", data_start, 0, 0, num_recs - 1) + b"\0" * 48
     out = bytearray(common + volume)
     out += b"\0" * (desc_off - len(out))
     out += desc

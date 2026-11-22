@@ -253,10 +253,12 @@ HRESULT CHandler::Open2(IInStream *stream, IArchiveOpenCallback *callback)
     if ((f.Flags & kFile_Invalid) || f.Name == 0)
       continue;
     UInt32 dataIndex = i;
-    // a link to an earlier identical file: its data
-    if ((f.LinkFlags & 1) && f.LinkPrev < fileCount)
+    // a link to an earlier identical file, which may be a link itself:
+    // the data of the first of them
+    for (UInt32 n = 0; (raw[dataIndex].LinkFlags & 1) && raw[dataIndex].LinkPrev < fileCount && n < fileCount; n++)
+      dataIndex = raw[dataIndex].LinkPrev;
+    if (dataIndex != i)
     {
-      dataIndex = f.LinkPrev;
       const CRaw &src = raw[dataIndex];
       f.Flags = src.Flags;
       f.Size = src.Size;
