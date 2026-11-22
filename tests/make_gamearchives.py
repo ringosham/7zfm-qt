@@ -240,6 +240,61 @@ def rpgmaker(out):
     write(out, "tree-ogg.ogg", OGG)
 
 
+# ---------- KiriKiri .xp3 ----------
+
+XP3_SIG = b"XP3\r\n \n\x1a\x8b\x67\x01"
+
+
+def xp3(packed_index=True, cushion=False, hashed_names=False):
+    body = bytearray()
+    entries = b""
+    names = b""
+    pos = len(XP3_SIG) + 8 + (17 if cushion else 0)
+    for n, (name, data) in enumerate(FILES):
+        segs = b""
+        # numbers.bin in two segments, one stored and one zlib; the rest zlib
+        parts = [data[:1000], data[1000:]] if name.endswith("numbers.bin") else [data]
+        for k, part in enumerate(parts):
+            compress = not (name.endswith("numbers.bin") and k == 0)
+            stored = zlib.compress(part) if compress else part
+            segs += struct.pack("<IQQQ", 1 if compress else 0, pos + len(body), len(part), len(stored))
+            body += stored
+        adler = zlib.adler32(data)
+        shown = ("%08x" % adler) if hashed_names else name
+        nm = shown.encode("utf-16-le")
+        info = struct.pack("<IQQ", 0, len(data), sum(struct.unpack_from("<Q", segs, 20 + 28 * i)[0] for i in range(len(parts))))
+        info += struct.pack("<H", len(shown)) + nm
+        chunk = (b"info" + struct.pack("<Q", len(info)) + info
+                 + b"segm" + struct.pack("<Q", len(segs)) + segs
+                 + b"adlr" + struct.pack("<Q", 4) + struct.pack("<I", adler)
+                 + b"time" + struct.pack("<Q", 8) + struct.pack("<Q", 133000000000000000 + n))
+        entries += b"File" + struct.pack("<Q", len(chunk)) + chunk
+        if hashed_names:
+            real = name.encode("utf-16-le")
+            ch = struct.pack("<IH", adler, len(name)) + real
+            names += b"eliF" + struct.pack("<Q", len(ch)) + ch
+    index = names + entries
+    index_off = pos + len(body)
+    if packed_index:
+        z = zlib.compress(index)
+        idx = b"\x01" + struct.pack("<QQ", len(z), len(index)) + z
+    else:
+        idx = b"\x00" + struct.pack("<Q", len(index)) + index
+    if cushion:
+        head = XP3_SIG + struct.pack("<Q", len(XP3_SIG) + 8) + struct.pack("<I5xQ", 0x80, index_off)
+        assert len(head) == pos
+    else:
+        head = XP3_SIG + struct.pack("<Q", index_off)
+    return head + bytes(body) + idx
+
+
+def kirikiri(out):
+    write(out, "kirikiri.xp3", xp3())
+    write(out, "kirikiri-plain.xp3", xp3(packed_index=False))
+    write(out, "kirikiriz.xp3", xp3(cushion=True, hashed_names=True))
+    write(out, "kirikiri-game.exe", b"MZ" + b"\x90" * 8190 + xp3())
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -247,6 +302,7 @@ def main():
     godot(out)
     renpy(out)
     rpgmaker(out)
+    kirikiri(out)
 
 
 if __name__ == "__main__":

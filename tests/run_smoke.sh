@@ -252,4 +252,12 @@ check sh -c "CORE_SMOKE_PASSWORD=d41d8cd98f00b204e9800998ecf8427e '$S' cat '$G/m
 DESC="RPG Maker MZ: audio without a key doesn't open"
 check sh -c "! '$S' ls '$G/mv-nokey/song.ogg_' >/dev/null 2>&1"
 
+for f in kirikiri.xp3 kirikiri-plain.xp3 kirikiriz.xp3 kirikiri-game.exe; do
+  DESC="KiriKiri: $f extracts"
+  check same_tree "$G/$f"
+done
+DESC="KiriKiri: a damaged file fails its Adler-32"
+python3 -I -c 'import sys; d=bytearray(open(sys.argv[1],"rb").read()); i=d.find(bytes(range(40,60))); d[i]^=0xFF; open(sys.argv[2],"wb").write(d)' "$G/kirikiri.xp3" "$T/bad.xp3"
+check sh -c "rm -rf '$T/b'; ! '$S' x '$T/bad.xp3' '$T/b' >/dev/null 2>&1"
+
 exit $fail
