@@ -83,6 +83,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Sun Nov 22 2026 Ringo Sham <ringosham@gmail.com> - 0.5.6-1
+- Dragging a crafted archive's ".." folder out no longer names the temp folder's parent.
+
 * Sat Nov 21 2026 Ringo Sham <ringosham@gmail.com> - 0.5.5-1
 - Zip files made on Windows with '\' in paths open as folders.
 - Names Windows can't store are changed when extracting to FAT, exFAT, NTFS or SMB.
