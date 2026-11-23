@@ -84,6 +84,13 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Mon Nov 23 2026 Ringo Sham <ringosham@gmail.com> - 0.6.0-1
+- Installers open: Inno Setup, InstallShield (cabinets, version 3 archives, single-file setup.exe).
+- Game archives open: Unity, Unreal .pak (with Oodle), Godot, Ren'Py, RPG Maker, WOLF RPG Editor, KiriKiri, Bethesda.
+- ACE archives, and PowerISO DAA, gBurner GBI and MagicISO UIF images open.
+- UPX-packed executables show unpacked, with the system's upx.
+- An error is shown once, not again as a second message.
+
 * Sun Nov 22 2026 Ringo Sham <ringosham@gmail.com> - 0.5.6-1
 - Dragging a crafted archive's ".." folder out no longer names the temp folder's parent.
 
