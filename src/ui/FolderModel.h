@@ -22,6 +22,9 @@ void FolderAccess_Block();
 void FolderAccess_Unblock();
 bool FolderAccess_IsBlocked();
 
+// the ".." row's real index, as upstream's kParentIndex
+const UInt32 kParentIndex = (UInt32)(Int32)-1;
+
 class FolderModel : public QAbstractTableModel
 {
   Q_OBJECT
@@ -36,8 +39,9 @@ public:
   explicit FolderModel(QObject *parent = nullptr);
 
   // (folder) must have LoadItems() done. Keeps the current sort column if
-  // the new folder has it.
-  void SetFolder(IFolderFolder *folder);
+  // the new folder has it. (showDots): a ".." row first, which goes up
+  // (upstream's "Show .. item"); it can be focused but not selected.
+  void SetFolder(IFolderFolder *folder, bool showDots = false);
   void Reload();   // after folder->LoadItems()
   void Clear();
 
@@ -63,10 +67,12 @@ public:
   PROPID SortPropID() const { return _sort.SortID; }
 
   UInt32 RealIndex(int row) const { return _rows[row]; }
+  bool IsParentRow(int row) const { return row >= 0 && row < _rows.size() && _rows[row] == kParentIndex; }
+  int NumParentRows() const { return _dots ? 1 : 0; }
   int RowOfRealIndex(UInt32 realIndex) const;
   int RowOfName(const UString &name) const;
-  UString ItemName(int row) const { return _sort.GetItemName(_rows[row]); }
-  bool IsFolder(int row) const { return _sort.IsItem_Folder(_rows[row]); }
+  UString ItemName(int row) const { return IsParentRow(row) ? UString(L"..") : _sort.GetItemName(_rows[row]); }
+  bool IsFolder(int row) const { return IsParentRow(row) || _sort.IsItem_Folder(_rows[row]); }
   UInt64 ItemSize(int row) const;
   const QVector<CColumn> &Columns() const { return _columns; }
   int ColumnOfPropID(PROPID id) const;
@@ -77,6 +83,7 @@ private:
   QVariant DataImpl(const QModelIndex &index, int role) const;
   void LoadColumns();
   void Sort();
+  void FillRows();
   bool IsItemLink(UInt32 realIndex) const;
 
   CMyComPtr<IFolderFolder> _folder;
@@ -84,6 +91,7 @@ private:
   QVector<CColumn> _columns;
   QVector<UInt32> _rows;
   bool _isDevicesFolder = false;
+  bool _dots = false;
   bool _editable = false;
   mutable QHash<quint64, QVariant> _cache;  // (row, column, role) -> last value
 };

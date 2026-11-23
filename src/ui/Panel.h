@@ -262,6 +262,7 @@ private:
   CListViewInfo _listViewInfo;
   bool _needSaveInfo = false;
   bool _singleClick = false;
+  bool _showDots = false;   // "Show .. item"
   bool _flatMode = false;
   QVector<std::shared_ptr<QTemporaryDir>> _externalTemps; // files opened in other apps
 

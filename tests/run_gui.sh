@@ -111,6 +111,24 @@ mkdir -p "$WORK/dnduri"
 check run "$WORK/add/content.7z/content/" --select drop.txt --action "dnduri:$WORK/dnduri" --keys "@wait" --screenshot "$WORK/d2.png"
 check grep -q dropped "$WORK/dnduri/drop.txt"
 
+# "Show .. item" on: the ".." row goes up and is never one of the items
+D="$WORK/dots"
+mkdir -p "$D/top/sub" "$WORK/dots-cfg/7zfm-qt" "$D/drag1" "$D/drag2" "$D/drag3"
+printf '[Software]\n7-Zip\\FM\\ShowDots=1\n' > "$WORK/dots-cfg/7zfm-qt/7zfm-qt.conf"
+echo a > "$D/top/sub/a.txt"; echo b > "$D/top/sub/b.txt"; echo c > "$D/top/c.txt"
+dots() { env XDG_CONFIG_HOME="$WORK/dots-cfg" timeout 60 "$APP" "$@" >/dev/null 2>&1; }
+printf '%s\n' "$D/top/sub/a.txt" "$D/top/sub/b.txt" > "$D/expect1"
+printf '%s\n' "$D/top/c.txt" "$D/top/sub" > "$D/expect3"
+DESC="GUI: with '..' shown, Select All and a drag give the folder's files, not its parent"
+check dots "$D/top/sub/" --keys "Ctrl+A" --action "dnduri:$D/drag1" --screenshot "$WORK/dots1.png"
+check sh -c "sort '$D/drag1/urls.txt' | cmp -s - '$D/expect1'"
+DESC="GUI: with '..' shown, Select All and a drag in an archive give only its items"
+check dots "$WORK/add/content.7z/content/" --keys "Ctrl+A" --action "dnduri:$D/drag2" --screenshot "$WORK/dots2.png"
+check sh -c "test -s '$D/drag2/urls.txt' && ! grep -q '/[.][.]\$' '$D/drag2/urls.txt' && ! grep -qv '/7zO' '$D/drag2/urls.txt'"
+DESC="GUI: Enter on '..' goes up to the parent folder"
+check dots "$D/top/sub/" --keys "Home,Return,Ctrl+A" --action "dnduri:$D/drag3" --screenshot "$WORK/dots3.png"
+check sh -c "sort '$D/drag3/urls.txt' | cmp -s - '$D/expect3'"
+
 if command -v python3 >/dev/null 2>&1; then
   DESC="GUI: dragging a crafted zip's '..' folder names a file in the temp folder, not its parent"
   mkdir -p "$WORK/dotdot"

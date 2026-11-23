@@ -148,7 +148,7 @@ void Panel::RenameFile()
   }
   QAbstractItemView *v = CurrentView();
   const QModelIndex cur = _selection->currentIndex();
-  if (!cur.isValid())
+  if (!cur.isValid() || _model->IsParentRow(cur.row()))
     return;
   v->edit(_model->index(cur.row(), 0));
 }

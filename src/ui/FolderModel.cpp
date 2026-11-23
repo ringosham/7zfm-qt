@@ -35,6 +35,7 @@ void FolderModel::Clear()
   _sort.SetFolder(NULL);
   _columns.clear();
   _rows.clear();
+  _dots = false;
   endResetModel();
 }
 
@@ -90,11 +91,12 @@ void FolderModel::LoadColumns()
     }
 }
 
-void FolderModel::SetFolder(IFolderFolder *folder)
+void FolderModel::SetFolder(IFolderFolder *folder, bool showDots)
 {
   beginResetModel();
   _cache.clear();
   _folder = folder;
+  _dots = showDots;
   const PROPID oldSort = _sort.SortID;
   const bool oldAsc = _sort.Ascending;
   _sort.SetFolder(folder);
@@ -116,13 +118,7 @@ void FolderModel::SetFolder(IFolderFolder *folder)
     _sort.Ascending = true;
   }
   _sort.IsRawSortProp = 0;
-  _rows.clear();
-  UInt32 n = 0;
-  _folder->GetNumberOfItems(&n);
-  _rows.reserve((int)n);
-  for (UInt32 i = 0; i < n; i++)
-    _rows.append(i);
-  Sort();
+  FillRows();
   endResetModel();
 }
 
@@ -132,23 +128,31 @@ void FolderModel::Reload()
     return;
   beginResetModel();
   _cache.clear();
-  _rows.clear();
-  UInt32 n = 0;
-  _folder->GetNumberOfItems(&n);
-  _rows.reserve((int)n);
-  for (UInt32 i = 0; i < n; i++)
-    _rows.append(i);
-  Sort();
+  FillRows();
   endResetModel();
 }
 
+void FolderModel::FillRows()
+{
+  _rows.clear();
+  UInt32 n = 0;
+  _folder->GetNumberOfItems(&n);
+  _rows.reserve((int)n + 1);
+  if (_dots)
+    _rows.append(kParentIndex);
+  for (UInt32 i = 0; i < n; i++)
+    _rows.append(i);
+  Sort();
+}
+
+// the ".." row stays first
 void FolderModel::Sort()
 {
   for (const CColumn &c : _columns)
     if (c.ID == _sort.SortID)
       _sort.IsRawSortProp = c.IsRaw ? 1 : 0;
   const CSortContext &ctx = _sort;
-  std::stable_sort(_rows.begin(), _rows.end(), [&ctx](UInt32 a, UInt32 b) {
+  std::stable_sort(_rows.begin() + (_dots ? 1 : 0), _rows.end(), [&ctx](UInt32 a, UInt32 b) {
     return ctx.Compare(a, b) < 0;
   });
 }
@@ -203,13 +207,15 @@ int FolderModel::RowOfRealIndex(UInt32 realIndex) const
 int FolderModel::RowOfName(const UString &name) const
 {
   for (int i = 0; i < _rows.size(); i++)
-    if (_sort.GetItemName(_rows[i]) == name)
+    if (ItemName(i) == name)
       return i;
   return -1;
 }
 
 UInt64 FolderModel::ItemSize(int row) const
 {
+  if (IsParentRow(row))
+    return 0;
   NCOM::CPropVariant prop;
   if (_folder->GetProperty(_rows[row], kpidSize, &prop) != S_OK)
     return 0;
@@ -232,6 +238,8 @@ Qt::ItemFlags FolderModel::flags(const QModelIndex &index) const
 {
   if (!index.isValid())
     return Qt::NoItemFlags;
+  if (IsParentRow(index.row()))
+    return Qt::ItemIsEnabled | Qt::ItemNeverHasChildren;
   Qt::ItemFlags f = Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemNeverHasChildren | Qt::ItemIsDragEnabled;
   if (_editable && index.column() == 0)
     f |= Qt::ItemIsEditable;
@@ -240,7 +248,7 @@ Qt::ItemFlags FolderModel::flags(const QModelIndex &index) const
 
 bool FolderModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-  if (role != Qt::EditRole || !index.isValid() || index.column() != 0)
+  if (role != Qt::EditRole || !index.isValid() || index.column() != 0 || IsParentRow(index.row()))
     return false;
   const QString name = value.toString();
   if (name.isEmpty() || name == ToQ(_sort.GetItemName(_rows[index.row()])))
@@ -270,6 +278,23 @@ QVariant FolderModel::DataImpl(const QModelIndex &index, int role) const
 {
   const UInt32 real = _rows[index.row()];
   const CColumn &col = _columns[index.column()];
+  if (real == kParentIndex)
+  {
+    switch (role)
+    {
+      case Qt::DisplayRole:
+        return col.ID == kpidName ? QVariant(QStringLiteral("..")) : QVariant();
+      case Qt::DecorationRole:
+        return index.column() == 0 ? QVariant(GetIconProvider().Folder()) : QVariant();
+      case Qt::TextAlignmentRole:
+        return QVariant(Qt::AlignLeft | Qt::AlignVCenter);
+      case kIsFolderRole:
+        return true;
+      case kRealIndexRole:
+        return (uint)real;
+    }
+    return QVariant();
+  }
   switch (role)
   {
     case Qt::EditRole:

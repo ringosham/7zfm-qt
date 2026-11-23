@@ -290,6 +290,10 @@ void Panel::ApplySettings()
       ? QStringLiteral("QTreeView::item { border-right: 1px solid palette(midlight); border-bottom: 1px solid palette(midlight); }")
       : QString());
   _singleClick = st.SingleClick;
+  const bool changed = st.ShowDots != _showDots;
+  _showDots = st.ShowDots;
+  if (changed && _folder)
+    RefreshListCtrl_SaveFocused();
 }
 
 // upstream CPanel::ChangeFlatMode: items of all subfolders in one list
@@ -1358,7 +1362,8 @@ void Panel::Get_ItemIndices_Operated(CRecordVector<UInt32> &indices) const
   indices.Clear();
   const QModelIndexList rows = _selection->selectedRows();
   for (const QModelIndex &i : rows)
-    indices.Add(_model->RealIndex(i.row()));
+    if (!_model->IsParentRow(i.row()))
+      indices.Add(_model->RealIndex(i.row()));
   if (indices.IsEmpty())
   {
     const int focused = FocusedRealIndex();
@@ -1372,6 +1377,12 @@ void Panel::OpenSelectedItems(bool tryInternal)
 {
   CRecordVector<UInt32> indices;
   Get_ItemIndices_Operated(indices);
+  // the ".." item, with nothing selected, goes up (upstream OnItemActivated)
+  if (indices.IsEmpty() && _model->IsParentRow(_selection->currentIndex().row()))
+  {
+    OpenParentFolder();
+    return;
+  }
   if (indices.Size() > 20)
   {
     MessageBox_Error(LangString(IDS_TOO_MANY_ITEMS));
@@ -1439,7 +1450,8 @@ void Panel::SaveSelectedState(CSelectedState &s) const
     s.FocusedName_Defined = true;
   }
   for (const QModelIndex &i : _selection->selectedRows())
-    s.SelectedNames.Add(_model->ItemName(i.row()));
+    if (!_model->IsParentRow(i.row()))
+      s.SelectedNames.Add(_model->ItemName(i.row()));
 }
 
 void Panel::RefreshListCtrl()
@@ -1462,7 +1474,8 @@ void Panel::RefreshListCtrl(const CSelectedState &state)
   const HRESULT res = _folder->LoadItems();
   if (res != S_OK)
     MessageBox_Error_HRESULT(res);
-  _model->SetFolder(_folder);
+  // as upstream: no ".." in the root folder (the drives)
+  _model->SetFolder(_folder, _showDots && !IsRootFolder());
   InitColumns();
   const int nCols = _model->columnCount();
 
@@ -1676,7 +1689,11 @@ void Panel::SetHistory(const QStringList &paths)
 void Panel::SelectAll(bool select)
 {
   if (select)
+  {
     CurrentView()->selectAll();
+    if (_model->NumParentRows() != 0)
+      _selection->select(_model->index(0, 0), QItemSelectionModel::Deselect | QItemSelectionModel::Rows);
+  }
   else
     _selection->clearSelection();
 }
@@ -1684,9 +1701,10 @@ void Panel::SelectAll(bool select)
 void Panel::InvertSelection()
 {
   const int n = _model->rowCount();
-  if (n == 0)
+  const int first = _model->NumParentRows();
+  if (n <= first)
     return;
-  QItemSelection all(_model->index(0, 0), _model->index(n - 1, _model->columnCount() - 1));
+  QItemSelection all(_model->index(first, 0), _model->index(n - 1, _model->columnCount() - 1));
   _selection->select(all, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
 }
 
@@ -1701,7 +1719,7 @@ void Panel::SelectByMask(bool select)
   const UString m = ToU(mask);
   QItemSelection sel;
   const int nCols = _model->columnCount();
-  for (int row = 0; row < _model->rowCount(); row++)
+  for (int row = _model->NumParentRows(); row < _model->rowCount(); row++)
     if (DoesWildcardMatchName(m, _model->ItemName(row)))
       sel.select(_model->index(row, 0), _model->index(row, nCols - 1));
   _selection->select(sel, (select ? QItemSelectionModel::Select : QItemSelectionModel::Deselect));
@@ -2033,20 +2051,24 @@ void Panel::Properties()
 
 QString Panel::StatusText() const
 {
-  const QModelIndexList rows = _selection->selectedRows();
   UInt64 size = 0;
-  for (const QModelIndex &i : rows)
-    size += _model->ItemSize(i.row());
+  UInt32 numSelected = 0;
+  for (const QModelIndex &i : _selection->selectedRows())
+    if (!_model->IsParentRow(i.row()))
+    {
+      size += _model->ItemSize(i.row());
+      numSelected++;
+    }
   wchar_t num[32];
-  if (!rows.isEmpty())
+  if (numSelected != 0)
   {
-    ConvertUInt32ToString((UInt32)rows.size(), num);
+    ConvertUInt32ToString(numSelected, num);
     QString t = ToQ(MyFormatNew(LangString(IDS_N_SELECTED_ITEMS), num));
     if (size != 0)
       t += QLatin1String("      ") + ToQ(ConvertSizeToString(size));
     return t;
   }
-  ConvertUInt32ToString((UInt32)_model->rowCount(), num);
+  ConvertUInt32ToString((UInt32)(_model->rowCount() - _model->NumParentRows()), num);
   return QString::fromWCharArray(num) + QLatin1String(" ") + tr("object(s)");
 }
 
@@ -2136,7 +2158,8 @@ bool Panel::eventFilter(QObject *obj, QEvent *ev)
       const QModelIndex cur = _selection->currentIndex();
       if (cur.isValid())
       {
-        _selection->select(cur, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
+        if (!_model->IsParentRow(cur.row()))
+          _selection->select(cur, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
         const QModelIndex next = _model->index(cur.row() + 1, 0);
         if (next.isValid())
           _selection->setCurrentIndex(next, QItemSelectionModel::NoUpdate);
