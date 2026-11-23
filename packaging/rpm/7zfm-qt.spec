@@ -84,6 +84,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Mon Nov 23 2026 Ringo Sham <ringosham@gmail.com> - 0.6.1-1
+- The "Show .. item" setting works; ".." is never part of a selection.
+
 * Mon Nov 23 2026 Ringo Sham <ringosham@gmail.com> - 0.6.0-1
 - Installers open: Inno Setup, InstallShield (cabinets, version 3 archives, single-file setup.exe).
 - Game archives open: Unity, Unreal .pak (with Oodle), Godot, Ren'Py, RPG Maker, WOLF RPG Editor, KiriKiri, Bethesda.
