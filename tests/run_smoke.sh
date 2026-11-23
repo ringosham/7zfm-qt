@@ -266,6 +266,10 @@ for f in morrowind.bsa oblivion.bsa skyrim.bsa skyrim-stored.bsa skyrimse.bsa fa
 done
 DESC="Bethesda: a BA2 texture gets its DDS header back"
 check sh -c "'$S' cat '$G/fallout4-textures.ba2' textures/stone.dds | cmp -s - '$G/tree-stone.dds'"
+for t in normal_n sky bc7; do
+  DESC="Bethesda: BA2 texture $t.dds gets DirectXTex's header (legacy BC5, an RGBA8 cubemap, DX10 for BC7)"
+  check sh -c "'$S' cat '$G/fallout4-formats.ba2' textures/$t.dds | cmp -s - '$G/tree-$t.dds'"
+done
 
 for f in unity-lz4.unity3d unity-lzma.unity3d unity/sharedassets0.assets; do
   DESC="Unity: $f gives its TextAsset"

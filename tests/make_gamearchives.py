@@ -461,13 +461,53 @@ def ba2_dx10():
     name = b"textures\\stone.dds"
     names = struct.pack("<H", len(name)) + name
     head = b"BTDX" + struct.pack("<I4sIQ", 1, b"DX10", 1, data_start + len(body))
-    # the DDS the handler must give
+    # the DDS the handler must give: DirectXTex's header (depth 1)
     dds = bytearray(4 + 124)
     dds[0:4] = b"DDS "
-    struct.pack_into("<IIIIIII", dds, 4, 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, 8, 8, 32, 0, 4)
+    struct.pack_into("<IIIIIII", dds, 4, 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, 8, 8, 32, 1, 4)
     struct.pack_into("<II4s", dds, 4 + 72, 32, 4, b"DXT1")
     struct.pack_into("<I", dds, 4 + 104, 0x1000 | 0x8 | 0x400000)
     return head + rec + body + names, bytes(dds) + chunk1 + chunk2
+
+
+def dds_header(fmt, w, h, mips, cube, legacy):
+    """the DDS header DirectXTex writes: legacy is (pixel format flags, FourCC,
+    bits, masks), or None for the DX10 extension"""
+    bc = fmt in (71, 83, 98)
+    pitch = max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * (8 if fmt == 71 else 16) if bc else w * 4
+    d = bytearray(4 + 124 + (20 if legacy is None else 0))
+    d[0:4] = b"DDS "
+    flags = 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | (0x80000 if bc else 0x8)
+    struct.pack_into("<IIIIIII", d, 4, 124, flags, h, w, pitch, 1, mips)
+    if legacy is None:
+        struct.pack_into("<II4s", d, 4 + 72, 32, 4, b"DX10")
+        struct.pack_into("<IIIII", d, 128, fmt, 3, 4 if cube else 0, 1, 0)
+    else:
+        struct.pack_into("<II4sIIIII", d, 4 + 72, 32, *legacy)
+    struct.pack_into("<II", d, 4 + 104, 0x1000 | (0x400008 if mips > 1 else 0) | (0x8 if cube else 0),
+                     0xFE00 if cube else 0)
+    return bytes(d)
+
+
+def ba2_dx10_formats():
+    """the header cases: BC5 (legacy BC5U), an RGBA8 cubemap (legacy masks), BC7 (DX10)"""
+    tex = [
+        ("textures\\normal_n.dds", 83, 8, 8, False, (4, b"BC5U", 0, 0, 0, 0, 0), 64),
+        ("textures\\sky.dds", 28, 4, 4, True, (0x41, b"\0\0\0\0", 32, 0xff, 0xff00, 0xff0000, 0xff000000), 6 * 64),
+        ("textures\\bc7.dds", 98, 4, 4, False, None, 16),
+    ]
+    data_start = 24 + len(tex) * (24 + 24)
+    recs, body, expected = b"", b"", {}
+    for i, (name, fmt, w, h, cube, legacy, size) in enumerate(tex):
+        pixels = bytes((k * 13 + fmt) & 0xFF for k in range(size))
+        # distinct name hashes (readers that key files by them need that)
+        recs += struct.pack("<I4sIBBHHHBBH", 0x1000 + i, b"dds\0", 0x2000, 0, 1, 24, h, w, 1, fmt, 1 if cube else 0)
+        recs += struct.pack("<QIIHHI", data_start + len(body), 0, size, 0, 0, 0xBAADF00D)
+        body += pixels
+        expected[name.split("\\")[-1]] = dds_header(fmt, w, h, 1, cube, legacy) + pixels
+    names = b"".join(struct.pack("<H", len(n)) + n.encode() for n, *_ in tex)
+    head = b"BTDX" + struct.pack("<I4sIQ", 1, b"DX10", len(tex), data_start + len(body))
+    return head + recs + body + names, expected
 
 
 def bethesda(out):
@@ -481,6 +521,10 @@ def bethesda(out):
     ba2, dds = ba2_dx10()
     write(out, "fallout4-textures.ba2", ba2)
     write(out, "tree-stone.dds", dds)
+    ba2, textures = ba2_dx10_formats()
+    write(out, "fallout4-formats.ba2", ba2)
+    for name, data in textures.items():
+        write(out, "tree-" + name, data)
 
 
 # ---------- Unity (AssetStudio's readers) ----------

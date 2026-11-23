@@ -13,8 +13,9 @@
 // BA2 ("BTDX"; version 1 and 7, 8 Fallout 4, 2 and 3 Starfield): GNRL
 //   archives hold files, zlib-compressed or not (version 3 may say LZ4
 //   blocks); DX10 archives hold textures as chunks of mip levels, without
-//   their DDS header, which is rebuilt from the record. The names are a
-//   table at the end.
+//   their DDS header, which is rebuilt from the record as DirectXTex
+//   writes it (the legacy header where the format has one). The names are
+//   a table at the end.
 
 #include "Common/ComTry.h"
 #include "Common/MyBuffer.h"
@@ -244,81 +245,161 @@ class CBa2Handler Z7_final: public CHandlerBase
   HRESULT Open2(IInStream *stream, IArchiveOpenCallback *callback) Z7_override;
 };
 
-// bytes of a (w) x (h) image in DXGI format (fmt): 0 if unknown
-static UInt32 LinearSize(unsigned fmt, UInt32 w, UInt32 h, bool &blockCompressed, UInt32 &bitsPerPixel)
+// a DXGI format's layout: bits per pixel (or per pixel pair for the packed
+// 4:2:2 ones), or the bytes of a 4x4 block for the block-compressed ones
+struct CDxgiLayout
 {
-  blockCompressed = false;
-  bitsPerPixel = 0;
-  const UInt32 bw = (w + 3) / 4, bh = (h + 3) / 4;
+  unsigned Bits;
+  unsigned BlockBytes;
+  bool Packed;
+};
+
+static bool GetLayout(unsigned fmt, CDxgiLayout &l)
+{
+  l.Bits = 0;
+  l.BlockBytes = 0;
+  l.Packed = false;
   switch (fmt)
   {
     case 70: case 71: case 72: case 79: case 80: case 81:      // BC1, BC4
-      blockCompressed = true; return bw * bh * 8;
+      l.BlockBytes = 8; return true;
     case 73: case 74: case 75: case 76: case 77: case 78:      // BC2, BC3
     case 82: case 83: case 84:                                 // BC5
     case 94: case 95: case 96: case 97: case 98: case 99:      // BC6H, BC7
-      blockCompressed = true; return bw * bh * 16;
-    case 2: bitsPerPixel = 128; break;                         // R32G32B32A32_FLOAT
-    case 10: case 11: bitsPerPixel = 64; break;                // R16G16B16A16
-    case 24: case 26: case 28: case 29: case 87: case 88: case 91:
-      bitsPerPixel = 32; break;
-    case 49: case 56: bitsPerPixel = 16; break;                // R8G8, R16
-    case 61: case 65: bitsPerPixel = 8; break;                 // R8, A8
-    default: return 0;
+      l.BlockBytes = 16; return true;
+    case 68: case 69: case 107:                                // R8G8_B8G8, G8R8_G8B8, YUY2
+      l.Bits = 32; l.Packed = true; return true;
+    case 1: case 2: case 3: case 4: l.Bits = 128; return true;
+    case 5: case 6: case 7: case 8: l.Bits = 96; return true;
+    case 9: case 10: case 11: case 12: case 13: case 14:
+    case 15: case 16: case 17: case 18: l.Bits = 64; return true;
+    case 19: case 20: case 21: case 22: case 23: case 24: case 25: case 26:
+    case 27: case 28: case 29: case 30: case 31: case 32:
+    case 33: case 34: case 35: case 36: case 37: case 38:
+    case 39: case 40: case 41: case 42: case 43:
+    case 44: case 45: case 46: case 47:
+    case 67: case 87: case 88: case 89: case 90: case 91: case 92: case 93:
+      l.Bits = 32; return true;
+    case 48: case 49: case 50: case 51: case 52:
+    case 53: case 54: case 55: case 56: case 57: case 58: case 59:
+    case 85: case 86: case 115:
+      l.Bits = 16; return true;
+    case 60: case 61: case 62: case 63: case 64: case 65:
+      l.Bits = 8; return true;
   }
-  return w * h * bitsPerPixel / 8;
+  return false;
 }
 
 static void SetUi32(Byte *p, UInt32 v) { for (unsigned i = 0; i < 4; i++) p[i] = (Byte)(v >> (8 * i)); }
 
-// the DDS header of a texture: the classic one where there is (DXT1, DXT3,
-// DXT5, BGRA), else the DX10 extension
+// the legacy (pre-DX10) pixel format of a DXGI format, where there is one:
+// flags, FourCC, bit count and masks, as DirectXTex writes them
+struct CLegacyFormat
+{
+  unsigned Dxgi;
+  UInt32 Flags;
+  UInt32 FourCC;
+  UInt32 Bits, R, G, B, A;
+};
+
+#define FCC(a, b, c, d) ((UInt32)(Byte)(a) | ((UInt32)(Byte)(b) << 8) | ((UInt32)(Byte)(c) << 16) | ((UInt32)(Byte)(d) << 24))
+
+static const UInt32 kPf_FourCC = 0x4, kPf_Rgb = 0x40, kPf_Rgba = 0x41, kPf_Lum = 0x20000, kPf_LumA = 0x20001,
+    kPf_Alpha = 0x2, kPf_BumpDuDv = 0x80000;
+
+static const CLegacyFormat kLegacyFormats[] =
+{
+  { 28, kPf_Rgba, 0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 },   // R8G8B8A8_UNORM: A8B8G8R8
+  { 35, kPf_Rgb, 0, 32, 0x0000ffff, 0xffff0000, 0, 0 },                      // R16G16_UNORM: G16R16
+  { 49, kPf_LumA, 0, 16, 0x00ff, 0, 0, 0xff00 },                             // R8G8_UNORM: A8L8
+  { 56, kPf_Lum, 0, 16, 0xffff, 0, 0, 0 },                                   // R16_UNORM: L16
+  { 61, kPf_Lum, 0, 8, 0xff, 0, 0, 0 },                                      // R8_UNORM: L8
+  { 65, kPf_Alpha, 0, 8, 0, 0, 0, 0xff },                                    // A8_UNORM
+  { 68, kPf_FourCC, FCC('R','G','B','G'), 0, 0, 0, 0, 0 },
+  { 69, kPf_FourCC, FCC('G','R','G','B'), 0, 0, 0, 0, 0 },
+  { 107, kPf_FourCC, FCC('Y','U','Y','2'), 0, 0, 0, 0, 0 },
+  { 71, kPf_FourCC, FCC('D','X','T','1'), 0, 0, 0, 0, 0 },                   // BC1_UNORM
+  { 74, kPf_FourCC, FCC('D','X','T','3'), 0, 0, 0, 0, 0 },                   // BC2_UNORM
+  { 77, kPf_FourCC, FCC('D','X','T','5'), 0, 0, 0, 0, 0 },                   // BC3_UNORM
+  { 80, kPf_FourCC, FCC('B','C','4','U'), 0, 0, 0, 0, 0 },
+  { 81, kPf_FourCC, FCC('B','C','4','S'), 0, 0, 0, 0, 0 },
+  { 83, kPf_FourCC, FCC('B','C','5','U'), 0, 0, 0, 0, 0 },
+  { 84, kPf_FourCC, FCC('B','C','5','S'), 0, 0, 0, 0, 0 },
+  { 85, kPf_Rgb, 0, 16, 0xf800, 0x07e0, 0x001f, 0 },                         // B5G6R5_UNORM: R5G6B5
+  { 86, kPf_Rgba, 0, 16, 0x7c00, 0x03e0, 0x001f, 0x8000 },                   // B5G5R5A1_UNORM: A1R5G5B5
+  { 115, kPf_Rgba, 0, 16, 0x0f00, 0x00f0, 0x000f, 0xf000 },                  // B4G4R4A4_UNORM: A4R4G4B4
+  { 51, kPf_BumpDuDv, 0, 16, 0x00ff, 0xff00, 0, 0 },                         // R8G8_SNORM: V8U8
+  { 31, kPf_BumpDuDv, 0, 32, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000 },  // R8G8B8A8_SNORM: Q8W8V8U8
+  { 37, kPf_BumpDuDv, 0, 32, 0x0000ffff, 0xffff0000, 0, 0 },                 // R16G16_SNORM: V16U16
+  { 87, kPf_Rgba, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000 },   // B8G8R8A8_UNORM: A8R8G8B8
+  { 88, kPf_Rgb, 0, 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0 },             // B8G8R8X8_UNORM: X8R8G8B8
+  // D3DX's float and 16-bit formats, the D3DFMT value as the FourCC
+  { 2, kPf_FourCC, 116, 0, 0, 0, 0, 0 },     // R32G32B32A32_FLOAT
+  { 10, kPf_FourCC, 113, 0, 0, 0, 0, 0 },    // R16G16B16A16_FLOAT
+  { 11, kPf_FourCC, 36, 0, 0, 0, 0, 0 },     // R16G16B16A16_UNORM
+  { 13, kPf_FourCC, 110, 0, 0, 0, 0, 0 },    // R16G16B16A16_SNORM
+  { 16, kPf_FourCC, 115, 0, 0, 0, 0, 0 },    // R32G32_FLOAT
+  { 34, kPf_FourCC, 112, 0, 0, 0, 0, 0 },    // R16G16_FLOAT
+  { 41, kPf_FourCC, 114, 0, 0, 0, 0, 0 },    // R32_FLOAT
+  { 54, kPf_FourCC, 111, 0, 0, 0, 0, 0 }     // R16_FLOAT
+};
+
+// the DDS header of a texture, as DirectXTex writes it: the legacy pixel
+// format where the format has one, else the DX10 extension
 static void MakeDds(CByteBuffer &dds, unsigned fmt, UInt32 w, UInt32 h, unsigned mips, bool cube)
 {
-  bool bc;
-  UInt32 bpp;
-  const UInt32 linear = LinearSize(fmt, w, h, bc, bpp);
-  const char *fourcc = NULL;
-  switch (fmt)
-  {
-    case 71: fourcc = "DXT1"; break;
-    case 74: fourcc = "DXT3"; break;
-    case 77: fourcc = "DXT5"; break;
-    default: break;
-  }
-  const bool bgra = (fmt == 87);
-  const bool dx10 = !fourcc && !bgra;
+  CDxgiLayout l;
+  const bool known = GetLayout(fmt, l);
+  const CLegacyFormat *legacy = NULL;
+  for (unsigned i = 0; i < Z7_ARRAY_SIZE(kLegacyFormats); i++)
+    if (kLegacyFormats[i].Dxgi == fmt)
+      legacy = &kLegacyFormats[i];
+  const bool dx10 = (legacy == NULL);
   dds.Alloc(4 + 124 + (dx10 ? 20 : 0));
   Byte *p = dds;
   memset(p, 0, dds.Size());
   memcpy(p, "DDS ", 4);
   Byte *hd = p + 4;
   SetUi32(hd, 124);
+  const bool bc = (l.BlockBytes != 0);
   // CAPS, HEIGHT, WIDTH, PIXELFORMAT, MIPMAPCOUNT, LINEARSIZE or PITCH
-  SetUi32(hd + 4, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | (bc ? 0x80000 : 0x8));
+  SetUi32(hd + 4, 0x1 | 0x2 | 0x4 | 0x1000 | (mips > 0 ? 0x20000 : 0) | (bc ? 0x80000 : 0x8));
   SetUi32(hd + 8, h);
   SetUi32(hd + 12, w);
-  SetUi32(hd + 16, bc ? linear : (w * bpp + 7) / 8);
+  UInt32 pitch = 0;
+  if (known)
+  {
+    if (bc)
+      pitch = MyMax((UInt32)1, (w + 3) / 4) * MyMax((UInt32)1, (h + 3) / 4) * l.BlockBytes;
+    else if (l.Packed)
+      pitch = ((w + 1) >> 1) * 4;
+    else
+      pitch = (w * l.Bits + 7) / 8;
+  }
+  SetUi32(hd + 16, pitch);
+  SetUi32(hd + 20, 1);              // depth
   SetUi32(hd + 24, mips);
   Byte *pf = hd + 72;
   SetUi32(pf, 32);
-  if (bgra)
+  if (legacy)
   {
-    SetUi32(pf + 4, 0x41);          // RGB | ALPHAPIXELS
-    SetUi32(pf + 12, 32);
-    SetUi32(pf + 16, 0x00FF0000);
-    SetUi32(pf + 20, 0x0000FF00);
-    SetUi32(pf + 24, 0x000000FF);
-    SetUi32(pf + 28, 0xFF000000);
+    SetUi32(pf + 4, legacy->Flags);
+    SetUi32(pf + 8, legacy->FourCC);
+    SetUi32(pf + 12, legacy->Bits);
+    SetUi32(pf + 16, legacy->R);
+    SetUi32(pf + 20, legacy->G);
+    SetUi32(pf + 24, legacy->B);
+    SetUi32(pf + 28, legacy->A);
   }
   else
   {
-    SetUi32(pf + 4, 0x4);           // FOURCC
-    memcpy(pf + 8, fourcc ? fourcc : "DX10", 4);
+    SetUi32(pf + 4, kPf_FourCC);
+    memcpy(pf + 8, "DX10", 4);
   }
-  SetUi32(hd + 104, 0x1000 | 0x8 | (mips > 1 ? 0x400000 : 0));   // TEXTURE, COMPLEX, MIPMAP
+  // TEXTURE, and COMPLEX with MIPMAP or a cubemap's six faces
+  SetUi32(hd + 104, 0x1000 | (mips > 1 ? 0x400008 : 0) | (cube ? 0x8 : 0));
   if (cube)
-    SetUi32(hd + 108, 0xFE00);      // all six faces
+    SetUi32(hd + 108, 0xFE00);
   if (dx10)
   {
     Byte *x = p + 4 + 124;
