@@ -16,6 +16,7 @@ Below are the list of additional formats supported that differs from the origina
 | Format | Name | Notes |
 | ------ | ---- | ----------- |
 | exFAT | exFAT filesystem | Expecting raw partition files or block device |
+| FAT | FAT12 / FAT16 / FAT32 (.img, .ima, floppy images) | Write support. Long names (VFAT) with Windows-style 8.3 names. FAT partitions within images are not supported. |
 
 ## Disk images
 
@@ -30,6 +31,7 @@ Below are the list of additional formats supported that differs from the origina
 | UIF | MagicISO UIF (Universal Image Format) | ISO images, and mixed-mode CD images (BIN/CUE, MDS, NRG) as the image file with its sheet. Also password protected |
 | CISO | GameCube / Wii compact ISO (.ciso) | Equivalent to CSO. Opens at the disc image; its GameCube / Wii file system isn't read |
 | CHD (GameCube / Wii) | GameCube / Wii discs in a CHD (chdman createdvd) | Equivalent to CHD. Opens at the disc image; its GameCube / Wii file system isn't read |
+| ISO | Standard ISO 9660 | Write support while preserving bootable (Joliet/Rock Ridge). UDF not supported |
 
 
 ## Executables and setup files

@@ -111,7 +111,15 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
 
-**`src/formats`** holds formats upstream lacks, registered like upstream's own (see `FORMATS.md`): the compressed tars (`TarCompound.cpp`), exFAT, lzip, ACE, the disc images (`disc/`), installers (`installer/`) and game archives (`game/`); `common/ItemArchive.cpp` is the shared part of the formats that are a list of files. Upstream's registry holds 72 formats; `src/core/LoadCodecs.cpp`, upstream's file with 144, is built instead, and a test fails when it fills, so it gets doubled again. `WinPathZip.cpp` makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them; upstream's Linux build keeps it in the name. `UpxWrap.cpp` shows UPX-packed executables unpacked by the system's `upx`, when it is installed.
+**`src/formats`** holds formats upstream lacks, registered like upstream's own (see `FORMATS.md`):
+- the compressed tars (`TarCompound.cpp`), exFAT, lzip, ACE, the disc images (`disc/`), installers (`installer/`) and game archives (`game/`);
+- `common/ItemArchive.cpp`, the shared part of the formats that are a list of files;
+- `iso/`, upstream's ISO handler with update support (`IsoUpdate.cpp`). Files are added, deleted and renamed by appending new trees to the image, so boot records stay where they are. It also reads Rock Ridge over Joliet and follows Rock Ridge continuation areas;
+- `fat/`, upstream's FAT handler with update support (`FatUpdate.cpp`). Kept files stay in their clusters, and the FAT and directories are written again;
+- `WinPathZip.cpp`, which makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them. Upstream's Linux build keeps it in the name;
+- `UpxWrap.cpp`, which shows UPX-packed executables unpacked by the system's `upx`, when it is installed.
+
+Upstream's registry holds 72 formats. `src/core/LoadCodecs.cpp`, upstream's file with the cap raised to 144, is built instead. A test fails when it fills, so it gets doubled again.
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 
