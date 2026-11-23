@@ -92,6 +92,14 @@ DESC="GUI: Delete in an ISO image removes the item"
 check run "$WORK/add/disc.iso/docs/" --select numbers.txt --keys "Delete,Return,@wait" --screenshot "$WORK/iso2.png"
 check sh -c "! '$SEVENZZ' l '$WORK/add/disc.iso' | grep -q numbers.txt && '$SEVENZZ' l '$WORK/add/disc.iso' | grep -q drop.txt"
 
+if command -v mkfs.fat >/dev/null 2>&1 && command -v fsck.fat >/dev/null 2>&1; then
+  DESC="GUI: drop a file into a FAT floppy image, Yes to the confirmation"
+  rm -f "$WORK/add/floppy.img"
+  mkfs.fat -C -F 12 "$WORK/add/floppy.img" 1440 >/dev/null
+  check run "$WORK/add/floppy.img/" --action "drop:$WORK/add/drop.txt" --keys "Return,@wait,@wait" --screenshot "$WORK/fat1.png"
+  check sh -c "'$SEVENZZ' e -so '$WORK/add/floppy.img' drop.txt 2>/dev/null | grep -q dropped && fsck.fat -n '$WORK/add/floppy.img' >/dev/null 2>&1"
+fi
+
 DESC="GUI: drop files into a 7z, Cancel on the confirmation adds nothing"
 echo declined > "$WORK/add/declined.txt"
 cp "$WORK/add/content.7z" "$WORK/add/before-no.7z"

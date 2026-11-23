@@ -449,6 +449,54 @@ check sh -c "cp '$I/rr.iso' '$T/long.iso' && '$S' add '$T/long.iso' '' '$T/isoad
 DESC="ISO: an image with UDF isn't changed (read only)"
 check sh -c "cp '$I/udf.iso' '$T/u-udf.iso' && ! '$S' add '$T/u-udf.iso' '' '$T/isoadd/dos.txt' >/dev/null 2>&1 && cmp -s '$I/udf.iso' '$T/u-udf.iso'"
 
+# FAT updates (src/formats/fat/FatUpdate.cpp): FAT12, FAT16 and FAT32 images
+# that mkfs.fat and mtools make here; fsck.fat and mtools check the results
+if command -v mkfs.fat >/dev/null 2>&1 && command -v mcopy >/dev/null 2>&1 && command -v fsck.fat >/dev/null 2>&1; then
+  export MTOOLS_SKIP_CHECK=1
+  F="$T/fat"
+  mkdir -p "$F/src/docs/sub" "$F/add" "$F/many"
+  echo hello > "$F/src/README.TXT"
+  seq 1 3000 > "$F/src/docs/Long numbers file.txt"
+  echo deep > "$F/src/docs/sub/deep.txt"
+  head -c 70000 /dev/urandom > "$F/src/docs/random.bin"
+  echo "new file" > "$F/add/A new file with a long name.txt"
+  echo dos > "$F/add/DOS.TXT"
+  echo lower > "$F/add/lower.txt"
+  for i in $(seq 1 300); do echo "f$i" > "$F/many/Same prefix name number $i.txt"; done
+  fat_update() {  # fat_update <bits> <KiB>: make, change, check
+    rm -f "$F/f$1.img" "$F/u$1.img"
+    mkfs.fat -C -n "DISK$1" -F "$1" "$F/f$1.img" "$2" >/dev/null &&
+    mcopy -s -i "$F/f$1.img" "$F/src/README.TXT" "$F/src/docs" ::/ &&
+    cp "$F/f$1.img" "$F/u$1.img" &&
+    "$S" add "$F/u$1.img" "" "$F/add/A new file with a long name.txt" "$F/add/DOS.TXT" >/dev/null 2>&1 &&
+    "$S" add "$F/u$1.img" docs/sub "$F/add/lower.txt" >/dev/null 2>&1 &&
+    "$S" del "$F/u$1.img" docs/random.bin >/dev/null 2>&1 &&
+    "$S" ren "$F/u$1.img" README.TXT "Read Me.txt" >/dev/null 2>&1 &&
+    fsck.fat -n "$F/u$1.img" >/dev/null 2>&1 &&
+    [ "$(mdir -/ -b -i "$F/u$1.img" :: | LC_ALL=C sort | tr '\n' '|')" = "::/A new file with a long name.txt|::/DOS.TXT|::/Read Me.txt|::/docs/|::/docs/Long numbers file.txt|::/docs/sub/|::/docs/sub/deep.txt|::/docs/sub/lower.txt|" ] &&
+    rm -rf "$F/x" && mkdir "$F/x" && mcopy -s -n -i "$F/u$1.img" ::/ "$F/x/" 2>/dev/null &&
+    cmp -s "$F/x/Read Me.txt" "$F/src/README.TXT" && cmp -s "$F/x/docs/sub/lower.txt" "$F/add/lower.txt" &&
+    cmp -s "$F/x/docs/Long numbers file.txt" "$F/src/docs/Long numbers file.txt" &&
+    mlabel -s -i "$F/u$1.img" :: | grep -q "DISK$1" &&
+    mdir -i "$F/u$1.img" :: | grep -q '^DOS      TXT ' &&
+    mdir -i "$F/u$1.img" :: | grep -q '^ANEWFI~1 TXT '
+  }
+  for b in 12:1440 16:16384 32:40960; do
+    DESC="FAT: add, delete and rename in a FAT${b%%:*} image, fsck.fat and mtools agree"
+    check fat_update "${b%%:*}" "${b#*:}"
+  done
+  DESC="FAT: a folder of 300 clashing names grows its directory, short names unique"
+  check sh -c "cp '$F/f16.img' '$F/g16.img' && '$S' add '$F/g16.img' docs '$F/many' >/dev/null 2>&1 && fsck.fat -n '$F/g16.img' >/dev/null 2>&1 && [ \$(mdir -/ -b -i '$F/g16.img' ::/docs/many | wc -l) = 300 ] && [ \$(mdir -i '$F/g16.img' ::/docs/many | grep -c '~') = 300 ]"
+  DESC="FAT: renaming and deleting folders"
+  check sh -c "cp '$F/f16.img' '$F/h16.img' && '$S' ren '$F/h16.img' docs Documents >/dev/null 2>&1 && '$S' del '$F/h16.img' Documents/sub >/dev/null 2>&1 && fsck.fat -n '$F/h16.img' >/dev/null 2>&1 && mdir -/ -b -i '$F/h16.img' :: | LC_ALL=C sort | tr '\n' '|' | grep -qx '::/Documents/|::/Documents/Long numbers file.txt|::/Documents/random.bin|::/README.TXT|'"
+  DESC="FAT: a full FAT12 root directory refuses more, the image unchanged"
+  check sh -c "mkdir -p '$F/root' && for i in \$(seq 1 230); do echo x > '$F/root/R'\$i.TXT; done && cp '$F/f12.img' '$F/r12.img' && ! '$S' add '$F/r12.img' '' '$F'/root/* >/dev/null 2>&1 && cmp -s '$F/f12.img' '$F/r12.img'"
+  DESC="FAT: a full disk refuses a file, the image unchanged"
+  check sh -c "head -c 1500000 /dev/urandom > '$F/huge.bin' && cp '$F/f12.img' '$F/d12.img' && ! '$S' add '$F/d12.img' '' '$F/huge.bin' >/dev/null 2>&1 && cmp -s '$F/f12.img' '$F/d12.img'"
+else
+  echo "SKIP: FAT updates (mkfs.fat, mtools, fsck.fat)"
+fi
+
 # ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
 AC="$SRC/tests/data/ace"
 for f in ace10.ace solid.ace; do

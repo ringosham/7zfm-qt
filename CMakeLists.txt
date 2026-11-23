@@ -51,7 +51,8 @@ list(REMOVE_ITEM Z7QT_CORE_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/LoadCodecs.cpp
   ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoHandler.cpp
   ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoIn.cpp
-  ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoRegister.cpp)
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoRegister.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/FatHandler.cpp)
 add_library(7zcore OBJECT
   ${Z7QT_CORE_SOURCES}
   ${AGENT_SOURCES}
@@ -81,6 +82,8 @@ add_library(7zcore OBJECT
   src/formats/iso/IsoIn.cpp
   src/formats/iso/IsoRegister.cpp
   src/formats/iso/IsoUpdate.cpp
+  src/formats/fat/FatHandler.cpp
+  src/formats/fat/FatUpdate.cpp
   src/formats/installer/InnoSetup.cpp
   src/formats/installer/InstallShield.cpp
   src/formats/installer/InstallShield3.cpp
