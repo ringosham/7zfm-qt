@@ -80,10 +80,15 @@ DESC="GUI: delete inside a 7z"
 check run "$WORK/add/content.7z/content/" --select hello.txt --keys "Delete,Return" --screenshot "$WORK/s8.png"
 check sh -c "! '$SMOKE' ls '$WORK/add/content.7z' content | grep -q hello.txt"
 
-DESC="GUI: drop files into a 7z (CopyFrom)"
+DESC="GUI: drop files into a 7z (CopyFrom), after Yes to the confirmation"
 echo dropped > "$WORK/add/drop.txt"
-check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/drop.txt" --keys "@wait,@wait" --screenshot "$WORK/s9.png"
+check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/drop.txt" --keys "Return,@wait,@wait" --screenshot "$WORK/s9.png"
 check sh -c "'$SEVENZZ' e -so '$WORK/add/content.7z' content/drop.txt 2>/dev/null | grep -q dropped"
+DESC="GUI: drop files into a 7z, Cancel on the confirmation adds nothing"
+echo declined > "$WORK/add/declined.txt"
+cp "$WORK/add/content.7z" "$WORK/add/before-no.7z"
+check run "$WORK/add/content.7z/content/" --action "drop:$WORK/add/declined.txt" --keys "Escape,@wait,@wait" --screenshot "$WORK/s9b.png"
+check cmp -s "$WORK/add/content.7z" "$WORK/add/before-no.7z"
 
 # View/Edit with no Viewer/Editor configured, with stub programs (nothing
 # opens on the desktop): F3 -> the file's default app via xdg-open,
@@ -148,7 +153,7 @@ if command -v python3 >/dev/null 2>&1; then
   mkdir -p "$WORK/ro"
   cp "$SRC/tests/data/lzip/multi.txt.lz" "$WORK/ro/ro.lz"
   echo drop > "$WORK/ro/drop.txt"
-  check run "$WORK/ro/ro.lz" --action "drop:$WORK/ro/drop.txt" --keys "@wait,Escape,@wait" --screenshot "$WORK/ro/after.png"
+  check run "$WORK/ro/ro.lz" --action "drop:$WORK/ro/drop.txt" --keys "Return,@wait,Escape,@wait" --screenshot "$WORK/ro/after.png"
   check python3 -I -c 'import struct, sys
 w, h = struct.unpack(">II", open(sys.argv[1], "rb").read(24)[16:24])
 sys.exit(0 if w >= 800 else 1)' "$WORK/ro/after.png"

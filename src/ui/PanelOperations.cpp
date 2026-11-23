@@ -310,6 +310,19 @@ void Panel::DropFiles(const QStringList &paths, bool moveMode)
       MessageBox_Error(LangString(IDS_OPERATION_IS_NOT_SUPPORTED));
       return;
     }
+    // as upstream CDropTarget::Drop: files dropped into an archive are
+    // added only after a Yes
+    {
+      UString s = LangString(moveMode ? IDS_MOVE_TO : IDS_COPY_TO);
+      s.Add_LF();
+      s += _currentFolderPrefix;
+      s.Add_LF();
+      AddLangString(s, IDS_WANT_TO_COPY_FILES);
+      s += " ?";
+      if (QMessageBox::question(this, ToQ(LangString(IDS_CONFIRM_FILE_COPY)), ToQ(s),
+          QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel, QMessageBox::Yes) != QMessageBox::Yes)
+        return;
+    }
     // CopyFrom() takes names relative to one source folder: group by folder
     QMap<QString, QStringList> byDir;
     for (const QString &p : paths)
