@@ -527,6 +527,156 @@ def bethesda(out):
         write(out, "tree-" + name, data)
 
 
+# ---------- DxLib archives (WOLF RPG Editor's .wolf; GARbro's DxLib reader) ----------
+
+JP_NAME = "日本語.txt"          # Shift-JIS in the archive
+JP_DATA = "WOLF RPG エディター\n".encode("utf-8")
+DX_PASSWORD = "wolfpass"
+
+
+def dx_key(password):
+    """the key DxLib makes of a password"""
+    rr = lambda b, n: ((b >> n) | (b << (8 - n))) & 0xFF
+    rl = lambda b, n: ((b << n) | (b >> (8 - n))) & 0xFF
+    if password:
+        p = password.encode("cp932")[:12]
+        k = bytearray(p[i % len(p)] for i in range(12))
+    else:
+        k = bytearray([0xAA] * 12)
+    k[0] ^= 0xFF; k[1] = rr(k[1], 4); k[2] ^= 0x8A; k[3] = ~rr(k[3], 4) & 0xFF
+    k[4] ^= 0xFF; k[5] ^= 0xAC; k[6] ^= 0xFF; k[7] = ~rr(k[7], 3) & 0xFF
+    k[8] = rl(k[8], 3); k[9] ^= 0x7F; k[10] = rr(k[10], 4) ^ 0xD6; k[11] ^= 0xCC
+    return bytes(k)
+
+
+def dx_xor(data, key, pos):
+    return bytes(b ^ key[(pos + i) % 12] for i, b in enumerate(data))
+
+
+def dx_pack(data):
+    """DxLib's LZ: a control byte; it, unless doubled, starts a copy"""
+    counts = [0] * 256
+    for b in data:
+        counts[b] += 1
+    code = counts.index(min(counts))
+    out = bytearray()
+    heads = {}
+    i = 0
+    while i < len(data):
+        best_len, best_dist = 0, 0
+        if i + 4 <= len(data):
+            for j in reversed(heads.get(data[i:i + 4], [])[-16:]):
+                n = 0
+                while i + n < len(data) and n < 8195 and data[j + n] == data[i + n]:
+                    n += 1
+                if n > best_len:
+                    best_len, best_dist = n, i - j
+        if best_len >= 4:
+            d = best_dist - 1
+            size = 0 if d < 0x100 else 1 if d < 0x10000 else 2
+            n = best_len - 4
+            b = ((n & 0x1F) << 3) | (4 if n >= 32 else 0) | size
+            out.append(code)
+            out.append(b + 1 if b >= code else b)
+            if n >= 32:
+                out.append(n >> 5)
+            out += d.to_bytes(size + 1, "little")
+            step = best_len
+        else:
+            out += bytes([code, code]) if data[i] == code else data[i:i + 1]
+            step = 1
+        for k in range(i, min(i + step, len(data) - 3)):
+            heads.setdefault(data[k:k + 4], []).append(k)
+        i += step
+    return struct.pack("<II", len(data), len(out) + 9) + bytes([code]) + bytes(out)
+
+
+def dx_name(name):
+    """a name table entry: length / 4, a hash, the upper-case copy, the name"""
+    raw = name.encode("cp932")
+    padded = raw + b"\0" * (4 - len(raw) % 4)
+    upper = name.upper().encode("cp932")
+    upper += b"\0" * (len(padded) - len(upper))
+    return struct.pack("<HH", len(padded) // 4, sum(upper) & 0xFFFF) + upper + padded
+
+
+def dxa(version, password=None, extra=(), pack=True, tail=b""):
+    """files: FILES plus extra; a directory table walked from the root"""
+    wide = version >= 6
+    key = dx_key(password)
+    data_start = 0x30 if wide else (0x1C if version >= 4 else 0x18)
+    files = [(n, d) for n, d in FILES] + list(extra)
+    # the tree: directory -> [(name, data or None for a directory)]
+    tree = {"": []}
+    for name, data in files:
+        parts = name.split("/")
+        for k in range(1, len(parts)):
+            d = "/".join(parts[:k])
+            if d not in tree:
+                tree[d] = []
+                tree["/".join(parts[:k - 1])].append((parts[k - 1], None))
+        tree["/".join(parts[:-1])].append((parts[-1], data))
+    names, body = bytearray(), bytearray()
+    w = 8 if wide else 4
+    entry_size = 0x40 if wide else (0x2C if version >= 2 else 0x28)
+    none = (1 << 64) - 1 if wide else 0xFFFFFFFF
+    q = "<Q" if wide else "<I"
+    dirs = sorted(tree)
+    dir_index = {d: i * 4 * w for i, d in enumerate(dirs)}
+    # file table: each directory's entries together; a directory's own entry
+    # is in its parent's list
+    file_pos, entries, own = {}, bytearray(), {}
+    for d in dirs:
+        file_pos[d] = len(entries)
+        for name, data in tree[d]:
+            child = (d + "/" + name) if d else name
+            noff = len(names)
+            names += dx_name(name)
+            mtime = 133000000000000000
+            e = struct.pack(q, noff) + struct.pack(q, 0x10 if data is None else 0x20)
+            e += struct.pack("<QQQ", mtime, mtime, mtime)
+            if data is None:
+                own[child] = len(entries)
+                e += struct.pack(q, dir_index[child]) + struct.pack(q, 0)
+                if version >= 2:
+                    e += struct.pack(q, 0)
+            else:
+                stored = pack and len(data) > 64 and version >= 2
+                payload = dx_pack(data) if stored else data
+                pos = data_start + len(body)
+                body += dx_xor(payload, key, len(data) if wide else pos)
+                e += struct.pack(q, pos - data_start) + struct.pack(q, len(data))
+                if version >= 2:
+                    e += struct.pack(q, len(payload) if stored else none)
+            entries += e.ljust(entry_size, b"\0")
+    dtable = bytearray()
+    for d in dirs:
+        parent = none if d == "" else dir_index["/".join(d.split("/")[:-1])]
+        self_entry = none if d == "" else own[d]
+        dtable += b"".join(struct.pack(q, v) for v in (self_entry, parent, len(tree[d]), file_pos[d]))
+    index = bytes(names + entries + dtable)
+    index_off = data_start + len(body)
+    ftab, dtab = len(names), len(names) + len(entries)
+    if wide:
+        head = struct.pack("<2sHIqqqqI", b"DX", version, len(index), data_start, index_off, ftab, dtab, 932)
+        head += b"\0" * (data_start - len(head))
+        enc_index = dx_xor(index, key, 0)
+    else:
+        head = struct.pack("<2sHIIIII", b"DX", version, len(index), data_start, index_off, ftab, dtab)
+        head += struct.pack("<I", 932) if version >= 4 else b""
+        enc_index = dx_xor(index, key, index_off)
+    return dx_xor(head, key, 0) + bytes(body) + enc_index + tail
+
+
+def dxlib(out):
+    jp = [(JP_NAME, JP_DATA)]
+    write(out, "dxlib-v6.wolf", dxa(6, password="testkey", extra=jp))
+    write(out, "dxlib-v1.dxa", dxa(1, password="testkey", extra=jp, pack=False))
+    # an index that doesn't run to the end: the key can't be guessed
+    write(out, "dxlib-v4-default.dxa", dxa(4, extra=jp, tail=b"\0" * 4))
+    write(out, "dxlib-v2-password.wolf", dxa(2, password=DX_PASSWORD, extra=jp, tail=b"\0" * 4))
+
+
 # ---------- Unity (AssetStudio's readers) ----------
 
 def ustr(s):
@@ -1225,6 +1375,7 @@ def main():
     issetups(out)
     magiciso(out)
     unreal_oodle(out)
+    dxlib(out)
 
 
 if __name__ == "__main__":

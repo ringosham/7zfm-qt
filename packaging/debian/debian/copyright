@@ -71,6 +71,12 @@ Copyright: 2003-2023 David Eriksson and contributors (unshield)
 License: Expat
 Comment: follows unshield; the full notice is src/formats/installer/LICENSE.unshield
 
+Files: src/formats/game/DxArchive.cpp
+Copyright: 2015-2018 morkt (GARbro)
+License: Expat
+Comment: follows GARbro's DxLib reader; the full notice is
+ src/formats/game/LICENSE.garbro
+
 Files: src/formats/game/Oodle.cpp src/formats/game/Oodle.h
 Copyright: 2024-2026 lvlvllvlvllvlvl and contributors (oozextract)
 License: Expat

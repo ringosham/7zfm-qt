@@ -252,6 +252,24 @@ check sh -c "CORE_SMOKE_PASSWORD=d41d8cd98f00b204e9800998ecf8427e '$S' cat '$G/m
 DESC="RPG Maker MZ: audio without a key doesn't open"
 check sh -c "! '$S' ls '$G/mv-nokey/song.ogg_' >/dev/null 2>&1"
 
+# DxLib archives (src/formats/game/DxArchive.cpp), WOLF RPG Editor's .wolf:
+# the key read back from the header (versions 6 and 1), DxLib's default key,
+# a password; packed files, and a Shift-JIS name
+dx_tree() {  # dx_tree <archive> [password]
+  rm -rf "$T/dx"
+  CORE_SMOKE_PASSWORD=${2:-} "$S" x "$1" "$T/dx" >/dev/null 2>&1 || return 1
+  printf 'WOLF RPG \343\202\250\343\203\207\343\202\243\343\202\277\343\203\274\n' | cmp -s - "$T/dx/日本語.txt" || return 1
+  rm "$T/dx/日本語.txt" && diff -r "$G/tree" "$T/dx" >/dev/null
+}
+for f in dxlib-v6.wolf dxlib-v1.dxa dxlib-v4-default.dxa; do
+  DESC="DxLib: $f extracts"
+  check dx_tree "$G/$f"
+done
+DESC="DxLib: an archive with a password extracts with it"
+check dx_tree "$G/dxlib-v2-password.wolf" wolfpass
+DESC="DxLib: an archive with a password doesn't open with a wrong one"
+check sh -c "! CORE_SMOKE_PASSWORD=wrong '$S' ls '$G/dxlib-v2-password.wolf' >/dev/null 2>&1"
+
 for f in kirikiri.xp3 kirikiri-plain.xp3 kirikiriz.xp3 kirikiri-game.exe; do
   DESC="KiriKiri: $f extracts"
   check same_tree "$G/$f"
