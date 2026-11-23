@@ -7,6 +7,11 @@
 //   core_smoke cat <file> item/inside ...     write the item's bytes to stdout
 //   core_smoke x   <file> <outdir>            extract everything through the
 //                                             Agent (IArchiveFolder::Extract)
+//   core_smoke add <file> <folder> <file>...  add files to the archive's
+//                                             folder ("" for the root), as a
+//                                             drop does (IFolderOperations::CopyFrom)
+//   core_smoke del <file> <item>              delete an item (Delete)
+//   core_smoke ren <file> <item> <new name>   rename an item (Rename)
 //
 // CORE_SMOKE_FORMAT, if set, is the top-level file's format as Open Inside
 // takes it ("*": an image itself rather than the files of what it holds).
@@ -38,6 +43,36 @@
 #include <string.h>
 
 static const char *Password() { return getenv("CORE_SMOKE_PASSWORD"); }
+
+// the update commands' callback: prints errors, answers nothing
+class CUpdateCb Z7_final:
+  public IFolderArchiveUpdateCallback,
+  public CMyUnknownImp
+{
+  Z7_COM_UNKNOWN_IMP_1(IFolderArchiveUpdateCallback)
+  Z7_IFACE_COM7_IMP(IProgress)
+  Z7_IFACE_COM7_IMP(IFolderArchiveUpdateCallback)
+public:
+  unsigned NumErrors = 0;
+};
+
+Z7_COM7F_IMF(CUpdateCb::SetTotal(UInt64)) { return S_OK; }
+Z7_COM7F_IMF(CUpdateCb::SetCompleted(const UInt64 *)) { return S_OK; }
+Z7_COM7F_IMF(CUpdateCb::CompressOperation(const wchar_t *)) { return S_OK; }
+Z7_COM7F_IMF(CUpdateCb::DeleteOperation(const wchar_t *)) { return S_OK; }
+Z7_COM7F_IMF(CUpdateCb::OperationResult(Int32 opRes))
+{
+  if (opRes != 0)
+    NumErrors++;
+  return S_OK;
+}
+Z7_COM7F_IMF(CUpdateCb::UpdateErrorMessage(const wchar_t *message))
+{
+  fprintf(stderr, "%s\n", (const char *)GetAnsiString(message));
+  NumErrors++;
+  return S_OK;
+}
+Z7_COM7F_IMF(CUpdateCb::SetNumFiles(UInt64)) { return S_OK; }
 
 static HRESULT PasswordToBstr(BSTR *password)
 {
@@ -199,6 +234,11 @@ int main(int argc, char **argv)
     return 2;
   }
   const bool cat = strcmp(argv[1], "cat") == 0;
+  const bool add = strcmp(argv[1], "add") == 0;
+  const bool rm = strcmp(argv[1], "del") == 0;
+  const bool ren = strcmp(argv[1], "ren") == 0;
+  if ((add && argc < 5) || (rm && argc != 4) || (ren && argc != 5))
+    return 2;
   // t: x without writing anything (Test)
   const bool testOnly = strcmp(argv[1], "t") == 0;
   const bool extract = strcmp(argv[1], "x") == 0 || testOnly;
@@ -222,6 +262,81 @@ int main(int argc, char **argv)
   {
     fprintf(stderr, "cannot open %s as archive (0x%x)\n", argv[2], (unsigned)res);
     return 1;
+  }
+
+  if (add || rm || ren)
+  {
+    // to the folder (add) or the item's folder (rm, ren)
+    UStringVector parts;
+    SplitPathToParts(GetUnicodeString(argv[3]), parts);
+    UString itemName;
+    if (!add)
+    {
+      itemName = parts.Back();
+      parts.DeleteBack();
+    }
+    FOR_VECTOR (p, parts)
+    {
+      if (parts[p].IsEmpty())
+        continue;
+      UInt32 index;
+      RINOK(folder->LoadItems())
+      if (!FindItem(folder, parts[p], index) || !GetBool(folder, index, kpidIsDir))
+      {
+        fprintf(stderr, "no folder: %s\n", (const char *)GetAnsiString(parts[p]));
+        return 1;
+      }
+      CMyComPtr<IFolderFolder> sub;
+      RINOK(folder->BindToFolder(index, &sub))
+      folder = sub;
+    }
+    RINOK(folder->LoadItems())
+    CMyComPtr<IFolderOperations> ops;
+    folder.QueryInterface(IID_IFolderOperations, &ops);
+    if (!ops)
+      return 1;
+    CUpdateCb *cbSpec = new CUpdateCb;
+    CMyComPtr<IFolderArchiveUpdateCallback> cb = cbSpec;
+    if (add)
+    {
+      // CopyFrom takes names relative to one folder: the first file's
+      UString prefix;
+      UStringVector names;
+      for (int a = 4; a < argc; a++)
+      {
+        FString full;
+        if (!NWindows::NFile::NDir::MyGetFullPathName(us2fs(GetUnicodeString(argv[a])), full))
+          return 1;
+        const UString u = fs2us(full);
+        const int slash = u.ReverseFind_PathSepar();
+        if (prefix.IsEmpty())
+          prefix = u.Left((unsigned)(slash + 1));
+        names.Add(u.Ptr((unsigned)(slash + 1)));
+      }
+      CRecordVector<const wchar_t *> ptrs;
+      FOR_VECTOR (i, names)
+        ptrs.Add(names[i]);
+      res = ops->CopyFrom(BoolToInt(false), prefix, ptrs.ConstData(), ptrs.Size(), cb);
+    }
+    else
+    {
+      UInt32 index;
+      if (!FindItem(folder, itemName, index))
+      {
+        fprintf(stderr, "not found: %s\n", (const char *)GetAnsiString(itemName));
+        return 1;
+      }
+      if (rm)
+        res = ops->Delete(&index, 1, cb);
+      else
+        res = ops->Rename(index, GetUnicodeString(argv[4]), cb);
+    }
+    if (res != S_OK || cbSpec->NumErrors != 0)
+    {
+      fprintf(stderr, "%s failed (0x%x)\n", argv[1], (unsigned)res);
+      return 1;
+    }
+    return 0;
   }
 
   if (extract)

@@ -48,7 +48,10 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core)
 set(Z7QT_CORE_SOURCES ${SEVENZIP_CORE_SOURCES})
 list(REMOVE_ITEM Z7QT_CORE_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/UI/Common/ExtractingFilePath.cpp
-  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/LoadCodecs.cpp)
+  ${SEVENZIP_DIR}/CPP/7zip/UI/Common/LoadCodecs.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoHandler.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoIn.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoRegister.cpp)
 add_library(7zcore OBJECT
   ${Z7QT_CORE_SOURCES}
   ${AGENT_SOURCES}
@@ -74,6 +77,10 @@ add_library(7zcore OBJECT
   src/formats/game/UnrealPak.cpp
   src/formats/game/Oodle.cpp
   src/formats/game/DxArchive.cpp
+  src/formats/iso/IsoHandler.cpp
+  src/formats/iso/IsoIn.cpp
+  src/formats/iso/IsoRegister.cpp
+  src/formats/iso/IsoUpdate.cpp
   src/formats/installer/InnoSetup.cpp
   src/formats/installer/InstallShield.cpp
   src/formats/installer/InstallShield3.cpp

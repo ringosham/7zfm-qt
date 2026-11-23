@@ -399,6 +399,56 @@ done
 DESC="UIF: a mixed-mode image opens at its tracks"
 check sh -c "'$S' ls '$G/magiciso-mixed-cue.uif' | grep -q 'Track02.wav'"
 
+# ISO 9660 updates (src/formats/iso/IsoUpdate.cpp): add, delete and rename in
+# images xorriso made (tests/make_isos.sh); upstream 7zz and, if installed,
+# libarchive's bsdtar read the results
+I="$SRC/tests/data/iso"
+mkdir -p "$T/isoadd"
+echo "new file" > "$T/isoadd/A new file with a long name.txt"
+echo dos > "$T/isoadd/dos.txt"
+LONG=$(printf 'L%.0s' $(seq 1 150))" long Rock Ridge name ü.txt"
+echo long > "$T/isoadd/$LONG"
+iso_update() {  # iso_update <image> <copy> <docs> <sub> <readme>: the changes
+  cp "$I/$1" "$T/$2"
+  "$S" add "$T/$2" "" "$T/isoadd/A new file with a long name.txt" >/dev/null 2>&1 &&
+  "$S" add "$T/$2" "$4" "$T/isoadd/dos.txt" >/dev/null 2>&1 &&
+  "$S" del "$T/$2" "$3" >/dev/null 2>&1 &&
+  "$S" ren "$T/$2" "$5" "Read Me.txt" >/dev/null 2>&1
+}
+DESC="ISO: add, delete and rename in a plain ISO 9660 image (8.3 names)"
+check iso_update plain.iso u-plain.iso DOCS/NUMBERS.TXT DOCS/SUB README.TXT
+DESC="ISO: the plain image's new names are 8.3, contents read back by 7zz"
+check sh -c "'$S' ls '$T/u-plain.iso' | cut -f3 | tr '\n' ' ' | grep -qx 'BOOT DOCS A_NEW_FI.TXT READ_ME.TXT ' && '$SEVENZZ' e -so '$T/u-plain.iso' DOCS/SUB/DOS.TXT 2>/dev/null | grep -qx dos && '$SEVENZZ' t '$T/u-plain.iso' >/dev/null"
+for f in rr boot; do
+  DESC="ISO: add, delete and rename in $f.iso (Rock Ridge and Joliet)"
+  check iso_update $f.iso u-$f.iso docs/numbers.txt docs/sub readme.txt
+  DESC="ISO: $f.iso's changes read back by us and by 7zz (Joliet), the rest kept"
+  check sh -c "'$S' cat '$T/u-$f.iso' 'A new file with a long name.txt' | grep -qx 'new file' && '$S' cat '$T/u-$f.iso' 'Read Me.txt' | grep -qx hello && ! '$S' ls '$T/u-$f.iso' docs | grep -q numbers && '$SEVENZZ' e -so '$T/u-$f.iso' docs/sub/dos.txt 2>/dev/null | grep -qx dos && '$SEVENZZ' e -so '$T/u-$f.iso' docs/sub/deep.txt 2>/dev/null | grep -qx deep && '$SEVENZZ' t '$T/u-$f.iso' >/dev/null"
+  DESC="ISO: $f.iso keeps its Rock Ridge symlink and modes"
+  check sh -c "'$S' ls '$T/u-$f.iso' docs | grep -q 'link'"
+  if command -v bsdtar >/dev/null 2>&1; then
+    DESC="ISO: libarchive reads $f.iso's update without errors (Rock Ridge, then Joliet)"
+    check sh -c "bsdtar tf '$T/u-$f.iso' 2>&1 | LC_ALL=C sort | tr '\n' ' ' | grep -qx '. A new file with a long name.txt Read Me.txt boot boot/boot.img docs docs/link docs/sub docs/sub/deep.txt docs/sub/dos.txt ' || bsdtar tf '$T/u-$f.iso' 2>&1 | grep -v boot.cat | LC_ALL=C sort | tr '\n' ' ' | grep -qx '. A new file with a long name.txt Read Me.txt boot boot/boot.img docs docs/link docs/sub docs/sub/deep.txt docs/sub/dos.txt '"
+    check sh -c "bsdtar --options 'iso9660:!rockridge' -tf '$T/u-$f.iso' 2>&1 | grep -qx 'A new file with a long name.txt'"
+  fi
+done
+DESC="ISO: a bootable image keeps its boot record, catalog and boot image byte for byte"
+check python3 -I -c 'import sys
+a, b = (open(f, "rb").read() for f in sys.argv[1:3])
+cat = int.from_bytes(a[17 * 2048 + 0x47:17 * 2048 + 0x4B], "little")
+img = int.from_bytes(a[cat * 2048 + 32 + 8:cat * 2048 + 32 + 12], "little")
+same = lambda s, n=1: a[s * 2048:(s + n) * 2048] == b[s * 2048:(s + n) * 2048]
+sys.exit(0 if same(17) and same(cat) and same(img, 1) else 1)' "$I/boot.iso" "$T/u-boot.iso"
+DESC="ISO: the hybrid image's partition (its own trees) shows the changes, its MBR entry grew"
+check sh -c "dd if='$T/u-boot.iso' of='$T/u-boot-part.iso' bs=2048 skip=16 status=none && '$S' cat '$T/u-boot-part.iso' docs/sub/dos.txt | grep -qx dos && python3 -I -c 'import sys
+d = open(sys.argv[1], \"rb\").read()
+e = d[446:462]
+sys.exit(0 if int.from_bytes(e[8:12], \"little\") + int.from_bytes(e[12:16], \"little\") == len(d) // 512 else 1)' '$T/u-boot.iso'"
+DESC="ISO: a long Rock Ridge name (continuation area) survives two updates"
+check sh -c "cp '$I/rr.iso' '$T/long.iso' && '$S' add '$T/long.iso' '' '$T/isoadd/$LONG' >/dev/null 2>&1 && '$S' add '$T/long.iso' '' '$T/isoadd/dos.txt' >/dev/null 2>&1 && '$S' cat '$T/long.iso' '$LONG' | grep -qx long"
+DESC="ISO: an image with UDF isn't changed (read only)"
+check sh -c "cp '$I/udf.iso' '$T/u-udf.iso' && ! '$S' add '$T/u-udf.iso' '' '$T/isoadd/dos.txt' >/dev/null 2>&1 && cmp -s '$I/udf.iso' '$T/u-udf.iso'"
+
 # ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
 AC="$SRC/tests/data/ace"
 for f in ace10.ace solid.ace; do
