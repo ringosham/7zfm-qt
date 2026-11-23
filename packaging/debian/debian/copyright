@@ -71,6 +71,11 @@ Copyright: 2003-2023 David Eriksson and contributors (unshield)
 License: Expat
 Comment: follows unshield; the full notice is src/formats/installer/LICENSE.unshield
 
+Files: src/formats/game/Oodle.cpp src/formats/game/Oodle.h
+Copyright: 2024-2026 lvlvllvlvllvlvl and contributors (oozextract)
+License: Expat
+Comment: a port of oozextract; the full notice is src/formats/game/LICENSE.oozextract
+
 Files: src/formats/AceHandler.cpp src/formats/AceBlowfishTables.h
 Copyright: 2017-2026 Daniel Roethlisberger and contributors (acefile)
 License: BSD-2-clause

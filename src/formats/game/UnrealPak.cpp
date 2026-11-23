@@ -14,9 +14,8 @@
 //   in front.
 //
 // Encrypted indexes and files are AES-256 (ECB); the key is asked, as 64
-// hex digits or its base64. Oodle-compressed files are listed but not
-// extracted: Oodle is proprietary. IoStore containers (.utoc/.ucas) are a
-// different format.
+// hex digits or its base64. Oodle blocks are decoded by Oodle.cpp.
+// IoStore containers (.utoc/.ucas) are a different format.
 
 #include "Common/ComTry.h"
 #include "Common/MyBuffer.h"
@@ -29,6 +28,8 @@
 #include "C/Aes.h"
 
 #include "../common/ItemArchive.h"
+
+#include "Oodle.h"
 
 #include <string.h>
 
@@ -187,6 +188,7 @@ HRESULT CHandler::DecodePiece(const CItem &item, const CPiece &piece, CByteBuffe
     case kComp_Gzip: break;
     case kComp_Zstd: return DecodeMethod(kMethod_Zstd, 0, src, srcSize, dest, (size_t)piece.Size);
     case kComp_Lz4: return DecodeMethod(kMethod_Lz4Block, 0, src, srcSize, dest, (size_t)piece.Size);
+    case kComp_Oodle: return NOodle::Decode(src, srcSize, dest, (size_t)piece.Size) ? S_OK : k_Hr_DataError;
     default: return k_Hr_Unsupported;
   }
   // gzip: zlib's inflate with windowBits 31; strip the 10-byte header ourselves

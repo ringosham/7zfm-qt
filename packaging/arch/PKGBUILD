@@ -49,4 +49,5 @@ package() {
   install -Dm644 "$pkgname/src/formats/installer/LICENSE.unshield" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.unshield"
   install -Dm644 "$pkgname/src/formats/installer/LICENSE.isx" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.isx"
   install -Dm644 "$pkgname/src/formats/LICENSE.acefile" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.acefile"
+  install -Dm644 "$pkgname/src/formats/game/LICENSE.oozextract" "$pkgdir/usr/share/licenses/$pkgname/LICENSE.oozextract"
 }

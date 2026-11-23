@@ -283,6 +283,17 @@ for f in unreal-v1.pak unreal-v3-zlib.pak unreal-v5-zlib.pak unreal-v7-gzip.pak 
   check same_tree "$G/$f"
 done
 
+# Oodle blocks (src/formats/game/Oodle.cpp), cut from oozextract's test
+# streams: each codec (Kraken, Mermaid, Selkie, Leviathan, LZNA, Bitknit,
+# LZB16), restarts, a one-symbol Huffman table and a file of two blocks;
+# version 3 names Oodle by flag 4
+for f in unreal-v8b-oodle.pak unreal-v3-oodle.pak; do
+  DESC="Unreal: $f's Oodle blocks decode"
+  check sh -c "rm -rf '$T/o' && '$S' x '$G/$f' '$T/o' >/dev/null 2>&1 && cd '$T/o' && for x in \$(find . -type f | sed 's|^[.]/||'); do grep -q \"  \$x\$\" '$G/unreal-oodle.sha256' || exit 1; done && sha256sum -c --ignore-missing --quiet '$G/unreal-oodle.sha256'"
+done
+DESC="Unreal: a damaged Oodle block is a data error"
+check sh -c "cp '$G/unreal-v8b-oodle.pak' '$T/bad.pak' && printf '\\377\\377\\377\\377' | dd of='$T/bad.pak' bs=1 seek=300 conv=notrunc 2>/dev/null && '$S' t '$T/bad.pak' 2>&1 | grep -q 'errors: [1-9]'"
+
 DESC="Inno Setup: a 6.0 installer (LZMA and stored chunks) extracts, checksums checked"
 check sh -c "rm -rf '$T/inno'; '$S' x '$G/inno6-setup.exe' '$T/inno' >/dev/null 2>&1 && diff -r '$G/tree' '$T/inno/app' >/dev/null"
 DESC="core_smoke t tests without writing"

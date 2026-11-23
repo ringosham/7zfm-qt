@@ -10,6 +10,8 @@ tree by repak (https://github.com/trumank/repak), not by this script:
   repak pack --version V11 --compression Zlib tree unreal-v11-zlib.pak
 The MagicISO images (magiciso-*.uif) hold an ISO of the tree that xorriso
 makes; without xorriso they are left as they are.
+The Oodle paks (unreal-*-oodle.pak) are cut from oozextract's test streams:
+  OOZEXTRACT=<checkout> python3 -I tests/make_gamearchives.py tests/data/game
 """
 import hashlib
 import os
@@ -1066,6 +1068,104 @@ def magiciso(out):
     write(out, "magiciso-v3-lzma-key.uif", uif(image, version=3, fixed_key=1))
 
 
+# ---------- Unreal paks with Oodle blocks ----------
+# Oodle streams can't be written here (only Epic's library compresses), so
+# the blocks are cut from oozextract's test files
+# (https://github.com/lvlvllvlvllvlvl/oozextract, testdata/ and verify/):
+# set OOZEXTRACT to a checkout. Without it the paks are left as they are.
+
+def oodle_stream(path):
+    """an oozextract test file: the output size, then the stream"""
+    with open(path, "rb") as f:
+        d = f.read()
+    if d[4] == 0x8C:
+        return struct.unpack_from("<I", d)[0], d[4:]
+    return struct.unpack_from("<Q", d)[0], d[8:]
+
+
+def oodle_first(d):
+    """the stream cut to its first chunk (128 KiB codecs) or quantum (16 KiB ones)"""
+    be = lambda b: int.from_bytes(b, "big")
+    assert d[0] & 0xF == 0xC and not d[0] & 0x40
+    if d[1] & 0x7F in (2, 5, 11):
+        size = (be(d[2:4]) & 0x3FFF) + 1
+        return d[:4 + size], 0x4000
+    v = be(d[2:5])
+    c = d[5:]
+    h = be(c[:3])
+    if h & 0x800000:
+        n = 3 + (h & 0x7FFFF)
+    elif (c[0] >> 4) & 7 == 0:
+        n = 2 + (be(c[:2]) & 0xFFF) if c[0] >= 0x80 else 3 + be(c[:3])
+    else:
+        n = 3 + (be(c[:3]) & 0x3FF) if c[0] >= 0x80 else 5 + (be(c[1:5]) & 0x3FFFF)
+    return d[:2] + ((v & ~0x3FFFF) | (n - 1)).to_bytes(3, "big") + c[:n], 0x20000
+
+
+def fstring(s):
+    b = s.encode() + b"\0"
+    return struct.pack("<I", len(b)) + b
+
+
+def pak_record(major, offset, blocks, size, block_size, slot, sha):
+    """a file's record: in the index, and in front of its data"""
+    packed = sum(len(b) for b in blocks)
+    r = struct.pack("<QQQI", offset, packed, size, slot) + sha
+    hdr = len(r) + 4 + 16 * len(blocks) + 1 + 4
+    r += struct.pack("<I", len(blocks))
+    pos = hdr if major >= 5 else offset + hdr   # relative to the record from version 5
+    for b in blocks:
+        r += struct.pack("<QQ", pos, pos + len(b))
+        pos += len(b)
+    return r + struct.pack("<BI", 0, block_size)
+
+
+def unreal_pak(major, files, slot):
+    """files: (path, blocks, size, block size, content)"""
+    data = b""
+    index = fstring("../../../Game/") + struct.pack("<I", len(files))
+    for path, blocks, size, block_size, content in files:
+        sha = hashlib.sha1(content).digest()
+        rec = pak_record(major, len(data), blocks, size, block_size, slot, sha)
+        data += rec + b"".join(blocks)
+        index += fstring(path) + rec
+    footer = b""
+    if major >= 7:
+        footer += b"\0" * 16                  # the key's GUID
+    footer += b"\0"                           # index not encrypted
+    footer += struct.pack("<IIQQ", 0x5A6F12E1, major, len(data), len(index)) + hashlib.sha1(index).digest()
+    if major >= 8:
+        footer += b"".join(n.ljust(32, b"\0") for n in (b"Oodle", b"", b"", b"", b""))
+    return data + index + footer
+
+
+def unreal_oodle(out):
+    src = os.environ.get("OOZEXTRACT")
+    if not src:
+        print("OOZEXTRACT not set: the Oodle paks are not written")
+        return
+    with open(os.path.join(src, "verify", "xml"), "rb") as f:
+        xml = f.read()
+    files = []
+    for codec in ("kraken", "mermaid", "selkie", "leviathan", "lzna", "bitknit"):
+        piece, size = oodle_first(oodle_stream(os.path.join(src, "testdata", "xml." + codec))[1])
+        files.append(("Content/" + codec + ".xml", [piece], size, size, xml[:size]))
+    for name, ext in (("lzb16-short", "lzb16"), ("lzb16-mixed", "lzb16"), ("kraken-restart", "kraken"),
+                      ("single-symbol-huffman", "kraken")):
+        size, stream = oodle_stream(os.path.join(src, "testdata", name + "." + ext))
+        with open(os.path.join(src, "verify", name), "rb") as f:
+            content = f.read()
+        files.append(("Content/" + name + ".bin", [stream], size, size, content))
+    # two blocks of 128 KiB: Kraken, then LZNA's 16 KiB
+    blocks = [files[0][1][0], files[4][1][0]]
+    files.append(("Content/blocks.xml", blocks, 0x20000 + 0x4000, 0x20000, xml[:0x20000] + xml[:0x4000]))
+    write(out, "unreal-v8b-oodle.pak", unreal_pak(8, files, 1))
+    # version 3: flag 4 is Oodle
+    write(out, "unreal-v3-oodle.pak", unreal_pak(3, [files[4], files[6]], 4))
+    write(out, "unreal-oodle.sha256", "".join(
+        "%s  Game/%s\n" % (hashlib.sha256(f[4]).hexdigest(), f[0]) for f in files).encode())
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else "tests/data/game"
     os.makedirs(out, exist_ok=True)
@@ -1080,6 +1180,7 @@ def main():
     installshield(out)
     issetups(out)
     magiciso(out)
+    unreal_oodle(out)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,7 @@ add_library(7zcore OBJECT
   src/formats/game/Bethesda.cpp
   src/formats/game/Unity.cpp
   src/formats/game/UnrealPak.cpp
+  src/formats/game/Oodle.cpp
   src/formats/installer/InnoSetup.cpp
   src/formats/installer/InstallShield.cpp
   src/formats/installer/InstallShield3.cpp
