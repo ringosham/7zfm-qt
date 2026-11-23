@@ -348,6 +348,17 @@ for t in tgz tbz2 txz tzst; do
   rm -f "$G"/c.tar.* "$G/added.txt"
 done
 
+# plain .zst (src/formats/ZstdHandler.cpp, libzstd), read back with 7zz
+DESC="7zG: a -tzstd compresses one file"
+cp "$FX/content/docs/random.bin" "$G/z.bin"
+check run a -tzstd -mx9 "$G/z.bin.zst" "$G/z.bin"
+check sh -c "'$SEVENZZ' e -so '$G/z.bin.zst' 2>/dev/null | cmp -s - '$FX/content/docs/random.bin'"
+DESC="7zG: a -tzstd on an existing .zst replaces its file"
+cp "$FX/content/hello.txt" "$G/z.bin"
+check run a -tzstd "$G/z.bin.zst" "$G/z.bin"
+check sh -c "'$SEVENZZ' e -so '$G/z.bin.zst' 2>/dev/null | cmp -s - '$FX/content/hello.txt'"
+rm -f "$G/z.bin" "$G/z.bin.zst"
+
 # the file managers' menu commands (src/ui/ShellCommand.cpp)
 M="$WORK/menu"
 mkdir -p "$M" && cp -r "$FX/content" "$M/"

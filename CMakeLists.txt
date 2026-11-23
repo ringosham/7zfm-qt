@@ -52,7 +52,8 @@ list(REMOVE_ITEM Z7QT_CORE_SOURCES
   ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoHandler.cpp
   ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoIn.cpp
   ${SEVENZIP_DIR}/CPP/7zip/Archive/Iso/IsoRegister.cpp
-  ${SEVENZIP_DIR}/CPP/7zip/Archive/FatHandler.cpp)
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/FatHandler.cpp
+  ${SEVENZIP_DIR}/CPP/7zip/Archive/ZstdHandler.cpp)
 add_library(7zcore OBJECT
   ${Z7QT_CORE_SOURCES}
   ${AGENT_SOURCES}
@@ -63,6 +64,8 @@ add_library(7zcore OBJECT
   src/core/LoadCodecs.cpp
   src/core/WinFsNames.cpp
   src/formats/TarCompound.cpp
+  src/formats/ZstdHandler.cpp
+  src/formats/ZstdEncode.cpp
   src/formats/ExFatHandler.cpp
   src/formats/LzipHandler.cpp
   src/formats/AceHandler.cpp
@@ -145,7 +148,7 @@ else()
   message(STATUS "LZMA decoder: C (on x86_64, install uasm for the faster one)")
 endif()
 find_package(Threads REQUIRED)
-# zstd compression (src/formats/TarCompound.cpp): upstream ships only the decoder
+# zstd compression (src/formats/ZstdEncode.cpp): upstream ships only the decoder
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 # disc images (src/formats/disc): CSO and CHD deflate, ZSO LZ4, ISZ bzip2,

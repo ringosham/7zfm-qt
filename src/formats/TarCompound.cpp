@@ -7,7 +7,7 @@
 // own into a CStreamBinder, and upstream's gzip / bzip2 / xz handler
 // compresses what comes out of it, as its single item. Upstream ships no
 // zstd encoder (ZstdHandler.cpp has it behind Z7_USE_ZSTD_COMPRESSION,
-// without the sources), so zstd uses the system libzstd.
+// without the sources), so zstd uses the system libzstd (ZstdEncode.cpp).
 //
 // Updating an existing archive: Open() decompresses the tar into a temporary
 // file with upstream's handler and opens that with upstream's tar handler,
@@ -36,7 +36,7 @@
 #include "7zip/PropID.h"
 #include "7zip/UI/Common/LoadCodecs.h"
 
-#include <zstd.h>
+#include "ZstdEncode.h"
 
 #include <thread>
 
@@ -190,7 +190,6 @@ class CHandler Z7_final :
   NCOM::CPropVariant _phySize; // of the compressed file, not of the tar
 
   HRESULT GetTarOut(CMyComPtr<IOutArchive> &tar);
-  HRESULT ZstdCompress(ISequentialInStream *inStream, ISequentialOutStream *outStream);
 public:
   CHandler(ECompressor c): _compressor(c) { InitProps(); }
   void InitProps()
@@ -411,52 +410,6 @@ Z7_COM7F_IMF(CHandler::GetFileTimeType(UInt32 *type))
   return tar->GetFileTimeType(type);
 }
 
-// 7-Zip's levels (Store 0 .. Ultra 9) on zstd's 1..19; -mx above 9 is a
-// zstd level itself (up to 22)
-static int ZstdLevel(UInt32 level)
-{
-  static const Byte kLevels[] = { 1, 1, 2, 2, 3, 3, 6, 12, 15, 19 };
-  if (level < Z7_ARRAY_SIZE(kLevels))
-    return kLevels[level];
-  return (int)MyMin(level, (UInt32)ZSTD_maxCLevel());
-}
-
-HRESULT CHandler::ZstdCompress(ISequentialInStream *inStream, ISequentialOutStream *outStream)
-{
-  ZSTD_CCtx *const cctx = ZSTD_createCCtx();
-  if (!cctx)
-    return E_OUTOFMEMORY;
-  struct CFree { ZSTD_CCtx *c; ~CFree() { ZSTD_freeCCtx(c); } } freeCtx = { cctx };
-  ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, ZstdLevel(_level));
-  ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1);
-  // a libzstd built without threads keeps 0 workers: single-threaded
-  if (_numThreads > 1)
-    ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, (int)_numThreads);
-
-  const size_t inSize = ZSTD_CStreamInSize();
-  const size_t outSize = ZSTD_CStreamOutSize();
-  CByteBuffer inBuf(inSize), outBuf(outSize);
-  for (;;)
-  {
-    size_t read = inSize;
-    RINOK(ReadStream(inStream, inBuf, &read))
-    const ZSTD_EndDirective mode = read < inSize ? ZSTD_e_end : ZSTD_e_continue;
-    ZSTD_inBuffer in = { inBuf, read, 0 };
-    for (;;)
-    {
-      ZSTD_outBuffer out = { outBuf, outSize, 0 };
-      const size_t rem = ZSTD_compressStream2(cctx, &out, &in, mode);
-      if (ZSTD_isError(rem))
-        return E_FAIL;
-      RINOK(WriteStream(outStream, outBuf, out.pos))
-      if (mode == ZSTD_e_end ? rem == 0 : in.pos == in.size)
-        break;
-    }
-    if (mode == ZSTD_e_end)
-      return S_OK;
-  }
-}
-
 Z7_COM7F_IMF(CHandler::UpdateItems(ISequentialOutStream *outStream, UInt32 numItems,
     IArchiveUpdateCallback *updateCallback))
 {
@@ -529,7 +482,7 @@ Z7_COM7F_IMF(CHandler::UpdateItems(ISequentialOutStream *outStream, UInt32 numIt
       res = compressor->UpdateItems(outStream, 1, item);
     }
     else
-      res = ZstdCompress(tarIn, outStream);
+      res = NZ7Qt::ZstdCompress(tarIn, outStream, _level, _numThreads, NULL, NULL);
   }
   catch (...)
   {

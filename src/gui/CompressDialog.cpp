@@ -315,6 +315,13 @@ static const CFormatInfo g_Formats[] =
     METHODS_PAIR(g_XzMethods),
     kFF_Solid | kFF_MultiThread | kFF_MemUse
   },
+  // 7zfm-qt: zstd from libzstd (src/formats/ZstdHandler.cpp)
+  {
+    "zstd",
+    (1 << 1) | (1 << 3) | (1 << 5) | (1 << 7) | (1 << 9),
+    0, NULL,
+    kFF_MultiThread
+  },
   // 7zfm-qt: compressed tar in one step (src/formats/TarCompound.cpp), with
   // the levels and methods of GZip, BZip2 and xz above; zstd from libzstd
   {

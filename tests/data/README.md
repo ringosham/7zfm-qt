@@ -22,3 +22,5 @@ hold. The CHDs were made by MAME's `chdman` 0.276 (Debian `mame-tools`).
   at `-9`; `multi.txt.lz` is two members (its first 100000 bytes, then the
   rest with a 64 KiB dictionary) concatenated; `empty.lz` an empty file;
   `hello.tar.lz` a tar of `lzip-hello.txt` ("hello from a tar.lz").
+- `zst/hello.txt.zst`: made by zstd 1.5.7 (`zstd -19`) from `hello.txt`
+  ("hello from zstd"), the archive the .zst update tests start from.

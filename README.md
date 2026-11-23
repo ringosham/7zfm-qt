@@ -116,6 +116,7 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - `common/ItemArchive.cpp`, the shared part of the formats that are a list of files;
 - `iso/`, upstream's ISO handler with update support (`IsoUpdate.cpp`). Files are added, deleted and renamed by appending new trees to the image, so boot records stay where they are. It also reads Rock Ridge over Joliet and follows Rock Ridge continuation areas;
 - `fat/`, upstream's FAT handler with update support (`FatUpdate.cpp`). Kept files stay in their clusters, and the FAT and directories are written again;
+- `ZstdHandler.cpp`, upstream's zstd handler with its update code built. Upstream doesn't ship the encoder, so `ZstdEncode.cpp` uses the system libzstd, for `.tar.zst` too;
 - `WinPathZip.cpp`, which makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them. Upstream's Linux build keeps it in the name;
 - `UpxWrap.cpp`, which shows UPX-packed executables unpacked by the system's `upx`, when it is installed.
 

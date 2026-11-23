@@ -6,7 +6,7 @@ Below are the list of additional formats supported that differs from the origina
 
 | Format | Name | Notes |
 | ------ | ---- | ----------- |
-| zstd | ZStandard compression | Supports compression of .tar.zst as well |
+| zstd | ZStandard compression | Write support for .zst and .tar.zst. Updating a .zst replaces its file, as with .gz and .xz |
 | lzip | Lzip decompression | |
 | ACE | WinAce ACE 1.0 / 2.0 | Solid, self-extracting and encrypted (Blowfish) archives; .c00 volumes |
 

@@ -497,6 +497,28 @@ else
   echo "SKIP: FAT updates (mkfs.fat, mtools, fsck.fat)"
 fi
 
+# .zst updates (src/formats/ZstdHandler.cpp, libzstd): the panel replaces
+# the one file, as in .gz and .xz; upstream 7zz and, if installed, zstd
+# read the result
+Z="$T/zst"
+mkdir -p "$Z/new"
+cp "$SRC/tests/data/zst/hello.txt.zst" "$Z/"
+seq 1 50000 > "$Z/new/hello.txt"
+DESC="zst: reads a file zstd made"
+check sh -c "'$S' x '$Z/hello.txt.zst' '$Z/out' >/dev/null && grep -qx 'hello from zstd' '$Z/out/hello.txt'"
+DESC="zst: copying a file in replaces the content, read back by 7zz"
+check sh -c "'$S' add '$Z/hello.txt.zst' '' '$Z/new/hello.txt' >/dev/null 2>&1 && '$SEVENZZ' e -so '$Z/hello.txt.zst' 2>/dev/null | cmp -s - '$Z/new/hello.txt'"
+if command -v zstd >/dev/null 2>&1; then
+  DESC="zst: zstd reads it, with the size and checksum in the frame"
+  check sh -c "zstd -dc '$Z/hello.txt.zst' | cmp -s - '$Z/new/hello.txt' && zstd -lv '$Z/hello.txt.zst' 2>&1 | grep -q 'Decompressed Size:.*(288894 B)' && zstd -lv '$Z/hello.txt.zst' 2>&1 | grep -q 'Check: XXH64'"
+else
+  echo "SKIP: zst read back by zstd (zstd not installed)"
+fi
+DESC="zst: a second file or deleting the only one is refused, the archive unchanged"
+cp "$Z/hello.txt.zst" "$Z/before.zst"
+printf 'other\n' > "$Z/new/other.txt"
+check sh -c "! '$S' add '$Z/hello.txt.zst' '' '$Z/new/other.txt' >/dev/null 2>&1 && ! '$S' del '$Z/hello.txt.zst' hello.txt >/dev/null 2>&1 && cmp -s '$Z/before.zst' '$Z/hello.txt.zst'"
+
 # ACE (src/formats/AceHandler.cpp): made by ACE32 2.6, see tests/data/ace/README.md
 AC="$SRC/tests/data/ace"
 for f in ace10.ace solid.ace; do
