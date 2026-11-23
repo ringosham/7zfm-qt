@@ -7,23 +7,31 @@ A Qt 6 native port of the Windows 7-Zip File Manager (7zFM) for Linux purely for
 
 It uses upstream 7-Zip 26.06 unmodified, and as much of upstream's own GUI code as possible.
 
+| Table of contents                                              |
+| -------------------------------------------------------------- |
+| [Why?](#why)                                                   |
+| [Build](#build)                                                |
+| [How it is put together](#how-it-is-put-together)              |
+| [Differences from Windows 7zFM](#differences-from-windows-7zfm)|
+| [License](#license)                                            |
+
 ## Why?
 
 **Open by signature, not extension**
 - Opens as long as it recognizes the file signature, not by the file extension
-- Everything 7-Zip already reads: Archives, ISOs, disk images, partitions, even raw filesystem dumps
+- Everything 7-Zip already reads: Archives, ISOs, optical disk images, virtual machine disks, partitions, even raw filesystem dumps
 
-**Addittional format support compared to Windows**
-- zstd compression (relies on system libzstd)
-- Open raw block devices in /dev if given root, read only
-- exFAT, read only (`src/formats/ExFatHandler.cpp`).
-- lzip (.lz, .tar.lz, .tlz), read only (`src/formats/LzipHandler.cpp`, with upstream's LZMA decoder).
-- Optical disc images that upstream 7-Zip can't read without a plugin (`src/formats/disc`):
-    - Track images: CUE/BIN, CCD/IMG (CloneCD), MDS/MDF (Alcohol 120%), NRG (Nero), GDI (Dreamcast), CDI (DiscJuggler), CHD (MAME, v3 to v5).
-    - Compressed images: CSO and ZSO (PSP), CISO (GameCube and Wii), ISZ (UltraISO, not encrypted or split), ECM, and zisofs files.
-    - Each track is a file: data tracks as .iso, audio tracks as .wav. An image with only a data track opens at its files; one with more tracks shows the tracks.
-    - Test checks every data sector's error-detection code (and a CHD's checksums), so it tells a damaged image from a good one.
-    - CHD uses the system libFLAC for audio; CSO, ZSO and ISZ use the system zlib, lz4 and bzip2.
+**Addittional format support compared to standard**
+- In general, we support the following categories of formats:
+    - exFAT
+    - lzip
+    - Uncommon optical disc images: CHD, CSO, ISZ, MDS/MDF
+    - Raw block device files in /dev
+    - Common Windows setup files
+    - Common game engine archives (Unity, Unreal, Godot, etc.)
+    - ACE archives
+    - UPX packed executables
+- For an exhaustive list of supported formats, see [FORMATS.md](FORMATS.md)
 
 **Directly open nested disk images without extracting**
 - Regular archive software invokes 7zz in command line for all file operations, so nested archives and images always require extracting gigabytes of content before opening.
@@ -103,7 +111,7 @@ With that in place, these compile unchanged and show upstream's real dialogs:
 - resource strings extracted from upstream's `.rc` files by `tools/gen-lang.py`;
 - link seams.
 
-**`src/formats`** holds formats upstream lacks, registered like upstream's own: the compressed tars (`TarCompound.cpp`), exFAT (`ExFatHandler.cpp`), lzip (`LzipHandler.cpp`) and the disc images (`disc/`). Upstream's registry holds 72 formats at most, and that is now full: the disc images share 6 of them (`CD`, which also opens .mds and .ecm, `Disc`, `CHD`, `CSO`, `ISZ`, `zisofs`), and exFAT (`ExFatHandler.cpp`) and lzip (`LzipHandler.cpp`) have one each. Another format would have to join one of those. `WinPathZip.cpp` makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them; upstream's Linux build keeps it in the name.
+**`src/formats`** holds formats upstream lacks, registered like upstream's own (see `FORMATS.md`): the compressed tars (`TarCompound.cpp`), exFAT, lzip, ACE, the disc images (`disc/`), installers (`installer/`) and game archives (`game/`); `common/ItemArchive.cpp` is the shared part of the formats that are a list of files. Upstream's registry holds 72 formats; `src/core/LoadCodecs.cpp`, upstream's file with 144, is built instead, and a test fails when it fills, so it gets doubled again. `WinPathZip.cpp` makes `\` a folder separator in zip files made on Windows, as upstream's Windows build reads them; upstream's Linux build keeps it in the name. `UpxWrap.cpp` shows UPX-packed executables unpacked by the system's `upx`, when it is installed.
 
 **`src/ui`** holds the Qt widgets. `Panel` ports `CPanel`, and the navigation and Open Inside code follows upstream line by line.
 
@@ -127,5 +135,14 @@ The fixtures are a sparse 20 GB GPT disk with FAT32 and ext4, as raw, VHDX, VMDK
 LGPL-2.1-or-later, with the unRAR license restriction. See `LICENSE`, which is upstream's `DOC/License.txt`. 7-Zip is Copyright (C) Igor Pavlov.
 
 `src/formats/disc/DiscChd.cpp` follows libchdr and is also under its BSD-3-Clause license (Aaron Giles, Romain Tisserand); see `src/formats/disc/LICENSE.chd`.
+
+Some formats follow other projects and are also under their licenses:
+- `src/formats/installer/InnoSetup.cpp` is a port of innoextract (Daniel Scharrer, zlib license); see `src/formats/installer/LICENSE.innoextract`.
+- `src/formats/installer/InstallShield.cpp` follows unshield (David Eriksson and contributors, MIT license); see `src/formats/installer/LICENSE.unshield`.
+- `src/formats/installer/ISSetup.cpp` follows ISx (lifenjoiner, MIT license); see `src/formats/installer/LICENSE.isx`.
+- `src/formats/installer/blast.c` and `blast.h`, which `InstallShield3.cpp` decodes with, are Mark Adler's blast from zlib's contrib (zlib license, in `blast.h`).
+- `src/formats/AceHandler.cpp` is a port of acefile (Daniel Roethlisberger and contributors, BSD 2-clause license); see `src/formats/LICENSE.acefile`.
+- `src/formats/game/DxArchive.cpp` (WOLF RPG Editor's DxLib archives) follows GARbro (morkt, MIT license); see `src/formats/game/LICENSE.garbro`.
+- `src/formats/game/Oodle.cpp`, which decodes Unreal paks' Oodle blocks, is a port of oozextract (lvlvllvlvllvlvl and contributors, MIT license); see `src/formats/game/LICENSE.oozextract`.
 
 *As much as I want to make this CC0 because I didn't write any of it, the project is derived from 7-Zip. Hence bound by the same license.*
