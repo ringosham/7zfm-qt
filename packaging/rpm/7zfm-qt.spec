@@ -84,6 +84,11 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/thunar-archive-plugin/%{name}.tap
 
 %changelog
+* Mon Nov 23 2026 Ringo Sham <ringosham@gmail.com> - 0.7.0-1
+- Files can be added to, deleted from and renamed in ISO 9660 images; bootable ones stay bootable.
+- The same for FAT12, FAT16 and FAT32 images, floppy images among them.
+- Dropping files onto an archive asks first, as upstream 7-Zip does.
+
 * Mon Nov 23 2026 Ringo Sham <ringosham@gmail.com> - 0.6.1-1
 - The "Show .. item" setting works; ".." is never part of a selection.
 
